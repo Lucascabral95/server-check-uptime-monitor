@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Status {
+  PENDING
+  UP
+  DOWN
+}
+
+// Usuario del sistema
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @map("updated_at")
+  monitors  Monitor[]
+
+  @@map("users")
+}
+
+// Configuración de monitores
+model Monitor {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  name      String
+  url       String
+  frequency Int       @default(60) 
+  isActive  Boolean   @default(true) @map("is_active")
+  nextCheck DateTime  @default(now()) @map("next_check")
+  status    Status    @default(PENDING) 
+  lastCheck DateTime? @map("last_check")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @map("updated_at")
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs      PingLog[]
+
+  @@index([isActive, nextCheck])
+  @@map("monitors")
+}
+
+// Logs de cada ping
+model PingLog {
+  id         String   @id @default(uuid())
+  monitorId  String   @map("monitor_id")
+  statusCode Int      @map("status_code")
+  durationMs Int      @map("duration_ms")
+  error      String?  @db.Text
+  success    Boolean  @default(false)
+
+  timestamp  DateTime @default(now())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @map("updated_at")
+  
+  monitor    Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, timestamp(sort: Desc)]) // ← Ordenar desc
+  @@index([monitorId, success]) // ← Para uptime stats
+  @@map("ping_logs")
+}

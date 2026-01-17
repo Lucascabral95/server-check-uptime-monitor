@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Usuario del sistema
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  createdAt DateTime  @default(now()) @map("created_at")
+  monitors  Monitor[]
+
+  @@map("users")
+}
+
+// Configuración de monitores
+model Monitor {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  name      String
+  url       String
+  frequency Int       @default(60)
+  isActive  Boolean   @default(true) @map("is_active")
+  nextCheck DateTime  @default(now()) @map("next_check")
+  status    String    @default("PENDING")
+  lastCheck DateTime? @map("last_check")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs PingLog[]
+
+  @@index([isActive, nextCheck])
+  @@map("monitors")
+}
+
+// Logs de cada ping
+model PingLog {
+  id         String   @id @default(uuid())
+  monitorId  String   @map("monitor_id")
+  statusCode Int      @map("status_code")
+  durationMs Int      @map("duration_ms")
+  error      String?
+  timestamp  DateTime @default(now())
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, timestamp])
+  @@map("ping_logs")
+}

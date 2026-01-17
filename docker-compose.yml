@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: servercheck-db
+    restart: unless-stopped
+    env_file:
+      - ./apps/backend-uptime/.env
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U servercheck'] 
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - servercheck-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: servercheck-redis
+    restart: unless-stopped
+    env_file:
+      - ./apps/backend-uptime/.env
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - servercheck-network
+
+  backend-uptime:
+    build:
+      context: ./apps/backend-uptime
+      dockerfile: Dockerfile
+    container_name: servercheck-backend-uptime
+    restart: unless-stopped
+    env_file:
+      - ./apps/backend-uptime/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '4000:4000'
+    networks:
+      - servercheck-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  servercheck-network:
+    driver: bridge

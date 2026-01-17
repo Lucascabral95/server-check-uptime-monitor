@@ -1,0 +1,23 @@
+{
+  "name": "server-check-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:backend": "cd apps/backend-uptime && npm run start:dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "docker:backend": "cd apps/backend-uptime && docker-compose up --build -d backend-uptime"
+  },
+  "keywords": [],
+  "author": "Lucas Cabral Dev",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "turbo": "^2.7.4"
+  }
+}
