@@ -4,6 +4,8 @@ import { CanActivate } from '@nestjs/common';
 import { PayloadUserDto } from '../../user/dto/payload-user.dto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
+import { UserService } from '../../user/user.service';
+import { Role } from '@prisma/client';
 
 interface JwtHeader {
   kid: string;
@@ -28,9 +30,11 @@ interface CachedPublicKey {
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  constructor(private userService: UserService) {}
+
   private jwksCache: Map<string, CachedPublicKey> = new Map();
   private pendingFetches: Map<string, Promise<string>> = new Map();
-  private readonly CACHE_DURATION = 300000; // 5 minutos
+  private readonly CACHE_DURATION = 300000;
   private readonly MAX_CACHE_SIZE = 100;
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -72,11 +76,17 @@ export class JwtAuthGuard implements CanActivate {
         issuer: payload.iss,
       }) as PayloadUserDto;
 
-      if (decoded.token_use !== 'access') {
-        throw new UnauthorizedException('Token inválido: se requiere un token de acceso');
+      if (decoded.token_use !== 'access' && decoded.token_use !== 'id') {
+        throw new UnauthorizedException('Token inválido: se requiere un token de acceso o ID');
       }
 
-      request.user = decoded;
+      if (decoded.email) {
+        const dbUser = await this.userService.findOrCreateByEmail({ id: decoded.sub, email: decoded.email });
+        request.user = { ...decoded, dbUserId: dbUser.id, role: dbUser.role };
+      } else {
+        request.user = decoded;
+      }
+
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -91,7 +101,10 @@ export class JwtAuthGuard implements CanActivate {
       if (error.name === 'NotBeforeError') {
         throw new UnauthorizedException('Token no es válido aún');
       }
-      throw new UnauthorizedException('Token inválido');
+      console.error('Error en JwtAuthGuard:', error);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      throw new UnauthorizedException(`Token inválido: ${error.message}`);
     }
   }
 

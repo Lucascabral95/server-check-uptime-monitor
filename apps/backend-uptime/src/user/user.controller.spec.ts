@@ -2,13 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Role } from '@prisma/client';
+import { RequestUserDto } from './dto/request-user.dto';
 
 describe('UserController', () => {
   let controller: UserController;
   let service: UserService;
 
   const mockUserService = {
-    create: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
@@ -24,9 +26,15 @@ describe('UserController', () => {
         token_use: 'access',
         client_id: 'test-client-id',
         iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXX',
+        dbUserId: 'db-user-123',
+        role: Role.USER,
       };
       return true;
     }),
+  };
+
+  const mockRolesGuard = {
+    canActivate: jest.fn(() => true),
   };
 
   beforeEach(async () => {
@@ -41,6 +49,8 @@ describe('UserController', () => {
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(mockJwtAuthGuard)
+      .overrideGuard(RolesGuard)
+      .useValue(mockRolesGuard)
       .compile();
 
     controller = module.get<UserController>(UserController);
@@ -53,27 +63,11 @@ describe('UserController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('create', () => {
-    it('should create a user', async () => {
-      const createUserDto = {
-        email: 'test@example.com',
-        name: 'Test User',
-      };
-
-      mockUserService.create.mockReturnValue('User created successfully');
-
-      const result = controller.create(createUserDto);
-
-      expect(service.create).toHaveBeenCalledWith(createUserDto);
-      expect(result).toBe('User created successfully');
-    });
-  });
-
   describe('findAll', () => {
     it('should return an array of users', () => {
       const expectedUsers = [
-        { id: 1, email: 'user1@example.com' },
-        { id: 2, email: 'user2@example.com' },
+        { id: '1', email: 'user1@example.com' },
+        { id: '2', email: 'user2@example.com' },
       ];
 
       mockUserService.findAll.mockReturnValue(expectedUsers);
@@ -88,45 +82,48 @@ describe('UserController', () => {
   describe('findOne', () => {
     it('should return a single user by id', () => {
       const userId = '1';
-      const expectedUser = { id: 1, email: 'user@example.com' };
+      const expectedUser = { id: '1', email: 'user@example.com' };
+      const mockReq = {
+        user: { dbUserId: 'db-user-123', role: Role.USER },
+      };
 
       mockUserService.findOne.mockReturnValue(expectedUser);
 
-      const result = controller.findOne(userId);
+      const result = controller.findOne(userId, mockReq as any);
 
-      expect(service.findOne).toHaveBeenCalledWith(1);
+      expect(service.findOne).toHaveBeenCalledWith(userId, 'db-user-123');
       expect(result).toEqual(expectedUser);
     });
   });
 
   describe('update', () => {
-    it('should update a user', () => {
-      const userId = '1';
-      const updateUserDto = {
-        email: 'updated@example.com',
-        name: 'Updated Name',
-      };
+  it('should update a user', () => {
+    const userId = '1';
+    const updateUserDto = {
+      email: 'updated@example.com',
+    };
 
-      mockUserService.update.mockReturnValue('User updated successfully');
+    mockUserService.update.mockReturnValue('User updated successfully');
 
-      const result = controller.update(userId, updateUserDto);
+    const req = { user: { dbUserId: 'admin-id' } } as RequestUserDto;
+    const result = controller.update(userId, updateUserDto, req);
 
-      expect(service.update).toHaveBeenCalledWith(1, updateUserDto);
-      expect(result).toBe('User updated successfully');
-    });
+    expect(service.update).toHaveBeenCalledWith(userId, updateUserDto, 'admin-id');
+    expect(result).toBe('User updated successfully');
   });
+});
 
-  describe('remove', () => {
-    it('should remove a user', () => {
-      const userId = '1';
+describe('remove', () => {
+  it('should remove a user', () => {
+    const userId = '1';
 
-      mockUserService.remove.mockReturnValue('User removed successfully');
+    mockUserService.remove.mockReturnValue('User removed successfully');
 
-      const result = controller.remove(userId);
+    const req = { user: { dbUserId: 'admin-id' } } as RequestUserDto;
+    const result = controller.remove(userId, req);
 
-      expect(service.remove).toHaveBeenCalledWith(1);
-      expect(result).toBe('User removed successfully');
-    });
+    expect(service.remove).toHaveBeenCalledWith(userId, 'admin-id');
+    expect(result).toBe('User removed successfully');
   });
 });
 
@@ -145,5 +142,6 @@ describe('UserController - Authentication Tests', () => {
 
   it('should accept requests with valid Cognito access token', () => {
     expect(true).toBe(true);
+  });
   });
 });

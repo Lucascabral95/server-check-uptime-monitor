@@ -1,112 +1,121 @@
-# CLAUDE.md
+# Project Context
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## What This Is
 
-## Project Overview
+A production-ready **server monitoring application** using a monorepo architecture. The system tracks website uptime, performs health checks, and provides analytics through a modern dashboard.
 
-This is a **server monitoring application** built as a monorepo using **Turbo** for build orchestration. It consists of a NestJS backend API for uptime monitoring and a Next.js frontend dashboard, with PostgreSQL for data storage and Redis for queues/caching.
+## Tech Stack
 
-## Development Commands
+- **Backend**: NestJS + Prisma + BullMQ + PostgreSQL + Redis
+- **Frontend**: Next.js 15 (App Router) + React 19 + Tailwind CSS 4
+- **Infrastructure**: Docker Compose, Turbo (build orchestration)
 
-### Root Level Commands (run from repository root)
+## Quick Start
+
 ```bash
-npm run dev              # Start both frontend and backend in development
-npm run dev:backend      # Start only the backend server
-npm run build            # Build all applications
-npm run lint             # Lint all applications
-npm run docker:backend   # Run backend in Docker with dependencies
+# Install dependencies
+npm install
+
+# Start development environment
+npm run dev
+
+# Start only backend
+npm run dev:backend
+
+# Run with Docker (includes PostgreSQL + Redis)
+docker-compose up -d
 ```
 
-### Backend-Specific Commands (run from `apps/backend-uptime`)
-```bash
-npm run start:dev       # Start backend in watch mode (port 4000)
-npm run start:debug     # Start with debug mode
-npm run build           # Build for production
-npm run start:prod      # Run production build
-npm run test            # Run unit tests
-npm run test:e2e        # Run end-to-end tests
-npm run test:cov        # Run tests with coverage
-npm run lint            # Run ESLint
-npm run format          # Format with Prettier
-```
+## Project Structure
 
-### Frontend-Specific Commands (run from `apps/web`)
-```bash
-npm run dev             # Start Next.js dev server (port 3000)
-npm run build           # Build for production
-npm run start           # Start production server
-npm run lint            # Run ESLint
-```
-
-### Infrastructure
-```bash
-# Start PostgreSQL and Redis only (from repository root)
-docker-compose up -d postgres redis
-
-# Start full stack with Docker
-docker-compose up --build -d
-```
-
-## Architecture
-
-### Monorepo Structure
 ```
 server-check-app/
 ├── apps/
-│   ├── backend-uptime/    # NestJS API (port 4000)
-│   └── web/               # Next.js frontend (port 3000)
-├── docker-compose.yml     # PostgreSQL + Redis + Backend containers
-└── package.json           # Workspace configuration
+│   ├── backend-uptime/     # NestJS API (port 4000)
+│   │   ├── src/
+│   │   │   ├── uptime/     # Core monitoring logic
+│   │   │   ├── auth/       # JWT authentication
+│   │   │   ├── user/       # User management
+│   │   │   └── prisma/     # Database client
+│   │   ├── .claude.md      # Backend-specific context
+│   │   └── prisma/schema.prisma
+│   └── web/                # Next.js frontend (port 3000)
+│       ├── app/            # App Router pages
+│       └── .claude.md      # Frontend-specific context
+├── .claudescoperules       # Scope restrictions
+└── CLAUDE.md              # This file
 ```
 
-### Backend Architecture (`apps/backend-uptime`)
+## Key Workflows
 
-**Key Modules:**
-- `src/uptime/` - Core monitoring functionality
-  - `controller.ts` - REST endpoints for monitors
-  - `service.ts` - Business logic for monitor CRUD
-  - `processor.ts` - BullMQ queue processor for async checks
-- `src/user/` - User management and authentication
-- `src/auth/` - JWT strategy and guards
-- `src/prisma/` - Prisma client singleton
-- `src/config/` - Environment configuration with Joi validation
+### Creating a Monitor
+1. User authenticates via `/api/v1/auth/login`
+2. POST to `/api/v1/uptime/monitors` with URL and check frequency
+3. Monitor saved to PostgreSQL, BullMQ job scheduled
+4. Background worker executes checks, stores results in PingLog
 
-**Data Flow:**
-1. User creates a Monitor via REST API (URL, check frequency)
-2. Monitor is stored in PostgreSQL via Prisma
-3. BullMQ job is queued with next check timestamp
-4. Background worker (`processor.ts`) executes HTTP check
-5. PingLog is created with results (status, duration, error)
-6. Frontend polls or receives updates via WebSocket (planned)
+### Database Models
+- **User**: Authentication, owns monitors
+- **Monitor**: URL, frequency, status
+- **PingLog**: Check results (timestamp, status, response time)
 
-**Database Models (Prisma):**
-- `User` - Authentication, one-to-many with Monitor
-- `Monitor` - Server check configuration, one-to-many with PingLog
-- `PingLog` - Individual check results with indexed queries
+## Development Guidelines
 
-### Frontend Architecture (`apps/web`)
+### Code Style
+- **TypeScript**: Strict mode enabled
+- **Naming**: camelCase for variables/functions, PascalCase for classes/components
+- **Imports**: Absolute paths using `@/` alias
+- **Error Handling**: Use NestJS exception filters, Next.js error boundaries
 
-Next.js 16 with App Router and React 19. Currently scaffolded with basic landing page. Dashboard implementation is pending.
+### Testing
+- Backend: Jest unit tests + E2E tests
+- Run tests: `npm run test` (in respective app directories)
 
-### Service Ports
-- Backend API: `http://localhost:4000` (API prefix: `/api/v1`)
-- Frontend: `http://localhost:3000`
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
+### Database Changes
+1. Modify `apps/backend-uptime/prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name <migration-name>`
+3. Prisma Client auto-regenerates
 
-## Environment Setup
+### Environment Variables
+- Backend: Copy `.env.example` to `.env` in `apps/backend-uptime/`
+- Required: DATABASE_URL, REDIS_URL, JWT_SECRET, PORT
 
-Backend requires a `.env` file in `apps/backend-uptime/` with:
-- Database connection URL (PostgreSQL)
-- Redis connection URL
-- JWT secrets
-- API port configuration
+## Important Notes
 
-Refer to `.env.example` in the backend directory for required variables.
+- **Never commit** `.env` files or sensitive credentials
+- **API Routes**: Always prefix with `/api/v1/`
+- **CORS**: Configured for localhost:3000 in development
+- **Queue Jobs**: BullMQ handles async monitoring checks
+- **Port Conflicts**: Backend (4000), Frontend (3000), PostgreSQL (5432), Redis (6379)
 
-## Key Technologies
+## When Making Changes
 
-**Backend:** NestJS, Prisma ORM, BullMQ, JWT (Passport), TypeScript
-**Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript
-**Infrastructure:** PostgreSQL 16, Redis 7, Docker Compose
-**Build System:** Turbo (monorepo orchestration)
+1. **Backend API changes**: Update corresponding Swagger/OpenAPI docs
+2. **Database schema changes**: Always create a migration
+3. **New dependencies**: Install at workspace root for shared packages
+4. **Frontend components**: Use shadcn/ui conventions when applicable
+
+## Common Tasks
+
+```bash
+# Add new dependency to backend
+cd apps/backend-uptime && npm install <package>
+
+# Add new dependency to frontend
+cd apps/web && npm install <package>
+
+# Reset database (development)
+cd apps/backend-uptime && npx prisma migrate reset
+
+# Generate Prisma Client
+cd apps/backend-uptime && npx prisma generate
+
+# View database
+cd apps/backend-uptime && npx prisma studio
+```
+
+## Getting Help
+
+- Check app-specific `.claude.md` files for module details
+- Review Prisma schema for data model questions
+- See `docker-compose.yml` for infrastructure setup

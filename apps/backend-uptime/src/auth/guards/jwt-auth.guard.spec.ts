@@ -3,6 +3,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ExecutionContext } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PayloadUserDto } from '../../user/dto/payload-user.dto';
+import { UserService } from '../../user/user.service';
 import jwt from 'jsonwebtoken';
 
 const generateMockKeyPair = () => {
@@ -53,8 +54,18 @@ describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
 
   beforeEach(async () => {
+    const mockUserService = {
+      findOrCreateByEmail: jest.fn().mockResolvedValue({ id: 'db-user-123', email: 'test@example.com' }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [JwtAuthGuard],
+      providers: [
+        JwtAuthGuard,
+        {
+          provide: UserService,
+          useValue: mockUserService,
+        },
+      ],
     }).compile();
 
     guard = module.get<JwtAuthGuard>(JwtAuthGuard);
@@ -75,6 +86,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -107,7 +119,10 @@ describe('JwtAuthGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(context.switchToHttp().getRequest().user).toEqual(payload);
+      expect(context.switchToHttp().getRequest().user).toMatchObject({
+        ...payload,
+        dbUserId: 'db-user-123',
+      });
       expect(global.fetch).toHaveBeenCalledWith(
         'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abcdefghi/.well-known/jwks.json'
       );
@@ -201,6 +216,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -217,13 +233,48 @@ describe('JwtAuthGuard', () => {
       await expect(guard.canActivate(context)).rejects.toThrow('no es un token de Cognito');
     });
 
-    it('should throw UnauthorizedException when token_use is not "access"', async () => {
+    it('should allow access with valid Cognito id token', async () => {
       const payload: PayloadUserDto = {
         sub: 'user-id',
         iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
         token_use: 'id',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
+        client_id: 'client-id',
+        username: 'testuser',
+        origin_jti: 'origin-jti-123',
+        event_id: 'event-id-123',
+        scope: 'aws.cognito.signin.user.admin',
+        auth_time: Math.floor(Date.now() / 1000),
+        jti: 'jti-123',
+      };
+
+      const token = createValidToken(payload);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
+        }),
+      });
+
+      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
+
+      const context = createMockExecutionContext(`Bearer ${token}`);
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+    });
+
+    it('should throw UnauthorizedException when token_use is neither "access" nor "id"', async () => {
+      const payload: PayloadUserDto = {
+        sub: 'user-id',
+        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
+        token_use: 'refresh',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -259,6 +310,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) - 3600,
         iat: Math.floor(Date.now() / 1000) - 7200,
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -292,6 +344,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) - 100,
         iat: Math.floor(Date.now() / 1000) - 1000,
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -327,6 +380,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -362,6 +416,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -402,6 +457,7 @@ describe('JwtAuthGuard', () => {
         token_use: 'access',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',
@@ -443,8 +499,9 @@ describe('JwtAuthGuard', () => {
         sub: 'user-id',
         iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
         token_use: 'access',
-        exp: now + 1, 
+        exp: now + 1,
         iat: now,
+        email: 'test@example.com',
         client_id: 'client-id',
         username: 'testuser',
         origin_jti: 'origin-jti-123',

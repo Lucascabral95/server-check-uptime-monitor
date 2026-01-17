@@ -7,36 +7,41 @@ datasource db {
 }
 
 enum Status {
-  PENDING
+  PENDING 
   UP
   DOWN
 }
 
-// Usuario del sistema
+enum Role {
+   ADMIN
+   USER
+   GUEST
+}
+
 model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @default(now()) @map("updated_at")
-  monitors  Monitor[]
+  id         String    @id @default(uuid())
+  cognitoSub String?   @unique @map("cognito_sub")
+  email      String    @unique
+  role       Role      @default(USER)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @default(now()) @map("updated_at")
+  monitors   Monitor[]
 
   @@map("users")
 }
 
-// Configuración de monitores
 model Monitor {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   name      String
   url       String
-  frequency Int       @default(60) 
+  frequency Int       @default(60)
   isActive  Boolean   @default(true) @map("is_active")
   nextCheck DateTime  @default(now()) @map("next_check")
-  status    Status    @default(PENDING) 
   lastCheck DateTime? @map("last_check")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @default(now()) @map("updated_at")
-  
+  status    Status    @default(PENDING)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs      PingLog[]
 
@@ -44,22 +49,19 @@ model Monitor {
   @@map("monitors")
 }
 
-// Logs de cada ping
 model PingLog {
   id         String   @id @default(uuid())
   monitorId  String   @map("monitor_id")
   statusCode Int      @map("status_code")
   durationMs Int      @map("duration_ms")
-  error      String?  @db.Text
-  success    Boolean  @default(false)
-
+  error      String?
   timestamp  DateTime @default(now())
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @default(now()) @map("updated_at")
-  
+  createdAt  DateTime @default(now()) @map("created_at")
+  success    Boolean  @default(false)
+  updatedAt  DateTime @default(now()) @map("updated_at")
   monitor    Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
 
-  @@index([monitorId, timestamp(sort: Desc)]) // ← Ordenar desc
-  @@index([monitorId, success]) // ← Para uptime stats
+  @@index([monitorId, timestamp(sort: Desc)])
+  @@index([monitorId, success])
   @@map("ping_logs")
 }

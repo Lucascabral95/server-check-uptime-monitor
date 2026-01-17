@@ -1,0 +1,278 @@
+# Claude Code Scope Rules
+# Defines what Claude can and cannot modify in this repository
+# See: https://docs.claude.com/docs/build-with-claude/claude-code
+
+# ============================================================================
+# CRITICAL - NEVER MODIFY
+# ============================================================================
+# Files that should NEVER be changed under any circumstances
+
+never_modify:
+  # Package manager lock files - auto-generated
+  - "**/package-lock.json"
+  - "**/yarn.lock"
+  - "**/pnpm-lock.yaml"
+  - "**/bun.lockb"
+  
+  # Environment files - contain secrets
+  - "**/.env"
+  - "**/.env.local"
+  - "**/.env.production"
+  - "**/.env.*.local"
+  
+  # Git metadata
+  - ".git/**"
+  - ".gitignore"
+  - ".gitattributes"
+  
+  # Build outputs - auto-generated
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/.next/**"
+  - "**/out/**"
+  - "**/node_modules/**"
+  
+  # Prisma generated files
+  - "**/prisma/generated/**"
+  - "**/.prisma/**"
+  
+  # IDE and OS files
+  - "**/.vscode/**"
+  - "**/.idea/**"
+  - "**/*.swp"
+  - "**/.DS_Store"
+  
+  # Coverage and test outputs
+  - "**/coverage/**"
+  - "**/.nyc_output/**"
+  
+  # Logs
+  - "**/*.log"
+  - "**/logs/**"
+
+# ============================================================================
+# ASK BEFORE MODIFYING
+# ============================================================================
+# Files that require explicit user confirmation before changes
+
+ask_before_modifying:
+  # Core configuration files
+  - "package.json"              # Dependencies and scripts
+  - "tsconfig.json"            # TypeScript config
+  - "turbo.json"               # Monorepo build config
+  - "next.config.js"           # Next.js config
+  - "nest-cli.json"            # NestJS config
+  
+  # Database schema
+  - "**/prisma/schema.prisma"  # Critical: Database structure
+  
+  # Docker and infrastructure
+  - "docker-compose.yml"
+  - "Dockerfile"
+  - "**/Dockerfile"
+  
+  # CI/CD configurations
+  - ".github/workflows/**"
+  - ".gitlab-ci.yml"
+  - "azure-pipelines.yml"
+  
+  # Critical backend files
+  - "**/src/main.ts"           # App entry point
+  - "**/src/app.module.ts"     # Root module
+  
+  # Environment templates
+  - "**/.env.example"
+  - "**/.env.template"
+  
+  # Security files
+  - "**/.npmrc"
+  - "**/.yarnrc"
+  
+  # Documentation (if exists)
+  - "README.md"
+  - "CONTRIBUTING.md"
+  - "CHANGELOG.md"
+
+# ============================================================================
+# SAFE TO MODIFY
+# ============================================================================
+# Files Claude can freely modify after understanding context
+
+safe_to_modify:
+  # Source code
+  - "apps/backend-uptime/src/**/*.ts"
+  - "apps/web/app/**/*.tsx"
+  - "apps/web/app/**/*.ts"
+  - "apps/web/components/**/*.tsx"
+  - "apps/web/lib/**/*.ts"
+  - "apps/web/hooks/**/*.ts"
+  
+  # Tests
+  - "**/*.spec.ts"
+  - "**/*.test.ts"
+  - "**/*.e2e-spec.ts"
+  
+  # Styles
+  - "**/*.css"
+  - "**/*.scss"
+  - "**/tailwind.config.ts"
+  
+  # DTOs and types
+  - "**/dto/**/*.ts"
+  - "**/types/**/*.ts"
+  - "**/*.interface.ts"
+  - "**/*.type.ts"
+  
+  # Utilities and helpers
+  - "**/utils/**"
+  - "**/helpers/**"
+  - "**/lib/**"
+  
+  # Claude documentation
+  - "CLAUDE.md"
+  - "**/.claude.md"
+  - ".claudescoperules"
+
+# ============================================================================
+# MODIFICATION PATTERNS
+# ============================================================================
+
+patterns:
+  # When modifying database schema:
+  database_changes:
+    - "Always ask before modifying schema.prisma"
+    - "Suggest migration name after schema changes"
+    - "Warn about data loss in migrations"
+    - "Remind to run: npx prisma migrate dev"
+  
+  # When adding dependencies:
+  dependency_changes:
+    - "Always ask before adding new packages"
+    - "Explain why the dependency is needed"
+    - "Check for existing similar packages first"
+    - "Suggest npm/yarn/pnpm command to run"
+  
+  # When modifying API endpoints:
+  api_changes:
+    - "Ensure endpoint follows /api/v1/ prefix convention"
+    - "Add proper authentication guards if needed"
+    - "Update DTOs with validation decorators"
+    - "Consider backward compatibility"
+  
+  # When modifying environment variables:
+  env_changes:
+    - "Never modify .env files directly"
+    - "Update .env.example instead"
+    - "Document new variables in CLAUDE.md"
+    - "Remind user to update their local .env"
+  
+  # When adding new features:
+  feature_changes:
+    - "Follow existing module structure"
+    - "Create tests alongside feature code"
+    - "Update relevant .claude.md documentation"
+    - "Consider impact on both frontend and backend"
+
+# ============================================================================
+# SPECIAL RULES
+# ============================================================================
+
+special_rules:
+  # Prisma migrations
+  prisma:
+    - "Never manually edit migration files in prisma/migrations/"
+    - "Always generate migrations using prisma migrate dev"
+    - "Never delete existing migrations in production"
+  
+  # Monorepo rules
+  monorepo:
+    - "Install workspace dependencies at root level"
+    - "Install app-specific dependencies in respective app folders"
+    - "Changes to one app should not break others"
+  
+  # Security
+  security:
+    - "Never commit sensitive data (API keys, passwords)"
+    - "Always use environment variables for secrets"
+    - "Validate all user inputs in DTOs"
+    - "Use JwtAuthGuard on protected routes"
+  
+  # Code quality
+  quality:
+    - "Run linter before suggesting changes: npm run lint"
+    - "Follow existing code style and patterns"
+    - "Add TypeScript types for all functions"
+    - "Write descriptive commit-ready summaries"
+
+# ============================================================================
+# WORKFLOW GUIDANCE
+# ============================================================================
+
+workflows:
+  # Before making changes:
+  before_changes:
+    - "Read relevant .claude.md files for context"
+    - "Check if similar code exists elsewhere"
+    - "Verify change aligns with project architecture"
+    - "Consider impact on other modules"
+  
+  # After making changes:
+  after_changes:
+    - "Suggest running tests: npm run test"
+    - "Suggest linting: npm run lint"
+    - "Update documentation if API/features changed"
+    - "Provide clear commit message suggestion"
+  
+  # When user asks to "fix" something:
+  fixing_issues:
+    - "First, understand the full error context"
+    - "Check logs, error messages, and stack traces"
+    - "Look for similar issues in the codebase"
+    - "Explain the root cause before fixing"
+    - "Suggest preventive measures"
+
+# ============================================================================
+# PROJECT-SPECIFIC CONVENTIONS
+# ============================================================================
+
+conventions:
+  # Naming
+  naming:
+    - "Use camelCase for variables and functions"
+    - "Use PascalCase for classes and components"
+    - "Use kebab-case for file names"
+    - "Prefix interfaces with 'I' if using interface pattern"
+  
+  # File organization
+  files:
+    - "Group related files in feature folders"
+    - "Keep DTOs in dedicated dto/ folders"
+    - "Place types in types/ folder for shared types"
+    - "Co-locate tests with source files"
+  
+  # Error handling
+  errors:
+    - "Use NestJS built-in exceptions"
+    - "Return meaningful error messages"
+    - "Log errors with proper context"
+    - "Use try-catch in async operations"
+  
+  # Comments
+  comments:
+    - "Comment complex business logic"
+    - "Document public APIs with JSDoc"
+    - "Explain 'why' not 'what' in comments"
+    - "Keep comments up-to-date with code"
+
+# ============================================================================
+# REMINDERS
+# ============================================================================
+
+always_remember:
+  - "This is a production monitoring application - reliability is critical"
+  - "Backend uses BullMQ for background jobs - consider queue implications"
+  - "Frontend uses Next.js App Router - respect server/client boundaries"
+  - "Database uses Prisma - always create migrations for schema changes"
+  - "Authentication uses JWT - protect sensitive routes"
+  - "Follow the existing patterns - consistency matters"
+  - "When in doubt, ask the user before proceeding"

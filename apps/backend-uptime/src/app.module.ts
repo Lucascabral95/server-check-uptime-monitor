@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { envs } from './config/envs.schema';
 import { UptimeModule } from './uptime/uptime.module';
+import { MonitorModule } from './monitor/monitor.module';
 
 @Module({
   imports: [PrismaModule, UserModule,
@@ -19,7 +20,9 @@ import { UptimeModule } from './uptime/uptime.module';
         } 
       }),
 
-      UptimeModule
+      UptimeModule,
+
+      MonitorModule
   ],
   controllers: [AppController],
   providers: [AppService],
