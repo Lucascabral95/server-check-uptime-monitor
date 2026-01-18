@@ -7,7 +7,6 @@ on:
     paths:
       - 'apps/backend-uptime/**'
       - '.github/workflows/backend-ci.yml'
-      - 'package-lock.json'
 
 jobs:
   test-and-build:
@@ -30,10 +29,7 @@ jobs:
           cache-dependency-path: apps/backend-uptime/package-lock.json
 
       - name: Install dependencies
-        run: |
-          cd ../..
-          npm ci
-          cd apps/backend-uptime
+        run: npm ci
 
       - name: Run tests
         run: npm test
