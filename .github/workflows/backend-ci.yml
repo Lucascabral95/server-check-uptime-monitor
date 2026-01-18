@@ -75,20 +75,20 @@ jobs:
 
       - name: Wait for services
         run: |
-         until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
-         echo "Waiting for Postgres..."
-         sleep 2
-         done
-         echo "Postgres is ready"
+          until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
 
-         until nc -z 127.0.0.1 6379; do
-           echo "Waiting for Redis..."
-           sleep 2
-         done
-         echo "Redis is ready"
+          until nc -z 127.0.0.1 6379; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
 
       - name: Run migrations
-        run: npx prisma migrate deploy --workspace apps/backend-uptime
+        run: npx prisma migrate deploy --schema apps/backend-uptime/prisma/schema.prisma
 
       - name: Run tests
         run: npm test --workspace apps/backend-uptime
@@ -102,8 +102,10 @@ jobs:
             echo "Build failed: dist directory not found"
             exit 1
           fi
+
           if [ ! -f "apps/backend-uptime/dist/main.js" ]; then
             echo "Build failed: main.js not found"
             exit 1
           fi
+
           echo "Build successful"
