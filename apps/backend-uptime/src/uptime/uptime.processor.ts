@@ -1,16 +1,11 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
 import { QUEUES_NAME } from 'src/bullmq/bullmq.module';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Logger } from '@nestjs/common';
-import { PingLogService } from 'src/ping-log/ping-log.service';
-
-interface CheckResult {
-    success: boolean;
-    statusCode: number;
-    durationMs: number;
-    error?: string;
-}
+import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
+import { HttpPoolService } from './services/http-pool.service';
 
 @Processor(QUEUES_NAME.UPTIME_MONITOR)
 export class UptimeProcessor extends WorkerHost {
@@ -18,123 +13,128 @@ export class UptimeProcessor extends WorkerHost {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly pingLogService: PingLogService
+        private readonly pingLogBufferService: PingLogBufferService,
+        private readonly httpPoolService: HttpPoolService,
+        @InjectQueue(QUEUES_NAME.UPTIME_MONITOR_DLQ) private readonly dlq: Queue,
     ) {
         super();
     }
 
-    async process(job: Job) {
-        this.logger.log(`Starting monitor scan job: ${job.id}`);
+    //  Procesa un job de check individual para un monitor específico.
+    async process(job: Job): Promise<void> {
+        const { monitorId } = job.data;
+
+        // Validar que el job tenga el formato correcto
+        if (!monitorId) {
+            this.logger.warn(
+                `Skipping job with invalid data format: ${JSON.stringify(job.data)}. This is likely a legacy job from the old architecture.`,
+            );
+            // Remover job inválido para que no se reintente
+            await job.remove();
+            return;
+        }
+
+        this.logger.debug(`Processing check for monitor: ${monitorId}`);
 
         try {
-            // 1. Buscar monitors que necesitan check (isActive=true Y nextCheck <= ahora)
-            const pendingMonitors = await this.prisma.monitor.findMany({
-                where: {
-                    isActive: true,
-                    nextCheck: {
-                        lte: new Date(),
-                    },
-                },
+            // 1. Obtener información del monitor desde la DB
+            const monitor = await this.prisma.monitor.findUnique({
+                where: { id: monitorId },
                 select: {
                     id: true,
+                    name: true,
                     url: true,
                     frequency: true,
-                    name: true,
+                    isActive: true,
                 },
             });
 
-            if (pendingMonitors.length === 0) {
-                this.logger.log('No pending monitors to check');
+            if (!monitor) {
+                this.logger.warn(`Monitor not found: ${monitorId}`);
                 return;
             }
 
-            this.logger.log(`Found ${pendingMonitors.length} monitors to check`);
-
-            // 2. Procesar cada monitor
-            for (const monitor of pendingMonitors) {
-                await this.processMonitor(monitor);
+            // Si el monitor está inactivo, skip
+            if (!monitor.isActive) {
+                this.logger.debug(`Monitor is inactive: ${monitorId}`);
+                return;
             }
 
-            this.logger.log(`Completed processing ${pendingMonitors.length} monitors`);
-        } catch (error) {
-            this.logger.error(`Error processing monitor scan: ${error.message}`, error.stack);
-            throw error;
-        }
-    }
+            // 2. Ejecutar el check HTTP usando el pool de conexiones
+            const result = await this.httpPoolService.checkUrl(monitor.url, 10000);
 
-    // Procesa un monitor individual: hace check HTTP, crea PingLog y actualiza Monitor
-    private async processMonitor(monitor: { id: string; url: string; frequency: number; name: string }) {
-        const { id, url, frequency, name } = monitor;
-
-        this.logger.log(`Checking monitor: ${name} (${url})`);
-
-        try {
-            // 1. Hacer petición HTTP
-            const result = await this.checkUrl(url);
-
-            // 2. Crear PingLog con el resultado
-            await this.pingLogService.create({
-                monitorId: id,
+            // 3. Agregar al buffer de PingLogs (se escribirán en lote después)
+            this.pingLogBufferService.add({
+                monitorId: monitor.id,
                 statusCode: result.statusCode,
                 durationMs: result.durationMs,
                 success: result.success,
                 error: result.error,
-            })
+            });
 
-            // 3. Actualizar Monitor
+            // 4. Actualizar estado del monitor
             const now = new Date();
             await this.prisma.monitor.update({
-                where: { id },
+                where: { id: monitor.id },
                 data: {
                     status: result.success ? 'UP' : 'DOWN',
                     lastCheck: now,
-                    nextCheck: new Date(now.getTime() + frequency * 1000),
                 },
             });
 
             this.logger.log(
-                `Monitor ${name} checked: ${result.success ? 'UP' : 'DOWN'} (${result.durationMs}ms)`,
+                `Monitor ${monitor.name} checked: ${result.success ? 'UP' : 'DOWN'} (${result.durationMs}ms)`,
             );
         } catch (error) {
-            this.logger.error(`Error processing monitor ${name}: ${error.message}`, error.stack);
+            this.logger.error(
+                `Error processing monitor ${monitorId}: ${error.message}`,
+                error.stack,
+            );
 
-            // Crear PingLog con error
-            await this.pingLogService.create({
-                monitorId: id,
+            this.pingLogBufferService.add({
+                monitorId,
                 statusCode: 0,
                 durationMs: 0,
                 success: false,
                 error: error.message,
-                timestamp: new Date(),
-            })
+            });
+
+            if (job.attemptsMade >= (job.opts.attempts || 3)) {
+                await this.moveToDLQ(job, error);
+            }
+
+            throw error;
         }
     }
 
-    // Hace una petición HTTP GET con timeout de 10 segundos
-    private async checkUrl(url: string): Promise<CheckResult> {
-        const startTime = Date.now();
-
+    // Mueve un job fallido a la Dead Letter Queue para retries extendidos.
+    private async moveToDLQ(job: Job, error: Error): Promise<void> {
         try {
-            const response = await fetch(url, {
-                method: 'GET',
-                signal: AbortSignal.timeout(10000), 
-                headers: {
-                    'User-Agent': 'Server-Check-App/1.0',
+            await this.dlq.add(
+                `failed-${job.id}`,
+                {
+                    originalJob: job.data,
+                    error: error.message,
+                    failedAt: new Date(),
+                    attempts: job.attemptsMade,
                 },
-            });
+                {
+                    attempts: 5, 
+                    backoff: {
+                        type: 'exponential',
+                        delay: 30000, 
+                    },
+                },
+            );
 
-            return {
-                success: response.ok,
-                statusCode: response.status,
-                durationMs: Date.now() - startTime,
-            };
-        } catch (error) {
-            return {
-                success: false,
-                statusCode: 0,
-                durationMs: Date.now() - startTime,
-                error: error.message || 'Unknown error',
-            };
+            this.logger.warn(
+                `Job ${job.id} moved to DLQ after ${job.attemptsMade} attempts`,
+            );
+        } catch (dlqError) {
+            this.logger.error(
+                `Failed to move job to DLQ: ${dlqError.message}`,
+                dlqError.stack,
+            );
         }
     }
 }

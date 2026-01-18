@@ -1,0 +1,134 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/backend-uptime/**'
+      - '.github/workflows/backend-ci.yml'
+      - 'package-lock.json'
+
+jobs:
+  test-and-build:
+    name: Test and Build
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      PORT: ${{ secrets.PORT }}
+      SECRET_JWT: ${{ secrets.SECRET_JWT }}
+      JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+      MY_URL_FRONTEND: ${{ secrets.MY_URL_FRONTEND }}
+
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+
+      DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@127.0.0.1:5432/${{ secrets.POSTGRES_DB }}?schema=public
+
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env file
+        run: |
+          cat > apps/backend-uptime/.env << EOF
+          DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@127.0.0.1:5432/${{ secrets.POSTGRES_DB }}?schema=public
+          NODE_ENV=test
+          PORT=${{ secrets.PORT }}
+          SECRET_JWT=${{ secrets.SECRET_JWT }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+          MY_URL_FRONTEND=${{ secrets.MY_URL_FRONTEND }}
+          REDIS_HOST=127.0.0.1
+          REDIS_PORT=6379
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          EOF
+
+      - name: Wait for services
+        run: |
+          until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+
+          until nc -z 127.0.0.1 6379; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: apps/backend-uptime
+
+      - name: Run migrations
+        run: npx prisma migrate deploy
+        working-directory: apps/backend-uptime
+
+      - name: Run tests
+        run: npm test
+        working-directory: apps/backend-uptime
+
+      - name: Build application
+        run: npm run build
+        working-directory: apps/backend-uptime
+
+      - name: Check build output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Build failed: dist directory not found"
+            echo "Listing current directory:"
+            ls -la
+            exit 1
+          fi
+
+          if [ ! -f "dist/src/main.js" ]; then
+            echo "Build failed: main.js not found"
+            echo "Contents of dist directory:"
+            ls -la dist/
+            exit 1
+          fi
+
+          echo "Build successful"
+        working-directory: apps/backend-uptime
