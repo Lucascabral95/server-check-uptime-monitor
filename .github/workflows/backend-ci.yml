@@ -107,21 +107,28 @@ jobs:
         working-directory: apps/backend-uptime
 
       - name: Run tests
-        run: npm test --workspace apps/backend-uptime
+        run: npm test
+        working-directory: apps/backend-uptime
 
       - name: Build application
-        run: npm run build --workspace apps/backend-uptime
+        run: npm run build
+        working-directory: apps/backend-uptime
 
       - name: Check build output
         run: |
-          if [ ! -d "apps/backend-uptime/dist" ]; then
+          if [ ! -d "dist" ]; then
             echo "Build failed: dist directory not found"
+            echo "Listing current directory:"
+            ls -la
             exit 1
           fi
 
-          if [ ! -f "apps/backend-uptime/dist/main.js" ]; then
+          if [ ! -f "dist/main.js" ]; then
             echo "Build failed: main.js not found"
+            echo "Contents of dist directory:"
+            ls -la dist/
             exit 1
           fi
 
           echo "Build successful"
+        working-directory: apps/backend-uptime
