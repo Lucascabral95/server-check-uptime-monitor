@@ -36,12 +36,15 @@ model Monitor {
   name      String
   url       String
   frequency Int       @default(60)
+  
   isActive  Boolean   @default(true) @map("is_active")
   nextCheck DateTime  @default(now()) @map("next_check")
   lastCheck DateTime? @map("last_check")
+  status    Status    @default(PENDING)
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @default(now()) @map("updated_at")
-  status    Status    @default(PENDING)
+
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs      PingLog[]
 
@@ -56,10 +59,11 @@ model PingLog {
   durationMs Int      @map("duration_ms")
   error      String?
   timestamp  DateTime @default(now())
-  createdAt  DateTime @default(now()) @map("created_at")
   success    Boolean  @default(false)
-  updatedAt  DateTime @default(now()) @map("updated_at")
+  
   monitor    Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @map("updated_at")
 
   @@index([monitorId, timestamp(sort: Desc)])
   @@index([monitorId, success])

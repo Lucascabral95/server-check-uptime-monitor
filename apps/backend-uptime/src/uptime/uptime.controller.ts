@@ -1,34 +1,46 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { UptimeService } from './uptime.service';
-import { CreateUptimeDto } from './dto/create-uptime.dto';
-import { UpdateUptimeDto } from './dto/update-uptime.dto';
+import { CreateUptimeDto, UpdateUptimeDto } from './dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
+import { RequestUserDto } from 'src/user/dto';
 
 @Controller('uptime')
 export class UptimeController {
   constructor(private readonly uptimeService: UptimeService) {}
-
+  
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   create(@Body() createUptimeDto: CreateUptimeDto) {
     return this.uptimeService.create(createUptimeDto);
   }
-
+  
   @Get()
   findAll() {
     return this.uptimeService.findAll();
   }
-
+  
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.uptimeService.findOne(+id);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  findOne(@Param('id') id: string, @Request() req: RequestUserDto) {
+     return this.uptimeService.findOne(id, req.user.dbUserId);
   }
-
+  
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUptimeDto: UpdateUptimeDto) {
-    return this.uptimeService.update(+id, updateUptimeDto);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  update(@Param('id') id: string, @Body() updateUptimeDto: UpdateUptimeDto, @Request() req: RequestUserDto) {
+    return this.uptimeService.update(id, updateUptimeDto, req.user.dbUserId);
   }
-
+  
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.uptimeService.remove(+id);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  remove(@Param('id') id: string, @Request() req: RequestUserDto) {
+    return this.uptimeService.remove(id, req.user.dbUserId);
   }
 }
+

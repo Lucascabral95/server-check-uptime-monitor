@@ -1,5 +1,7 @@
 import { Status } from "@prisma/client";
-import { IsArray, IsBoolean, IsDate, IsEnum, IsNumber, IsString, IsUUID } from "class-validator";
+import { Type } from "class-transformer";
+import { IsArray, IsBoolean, IsDate, IsEnum, IsNumber, IsString, IsUUID, ValidateNested } from "class-validator";
+import { GetPingLogDto } from "src/ping-log/dto";
 
 export class GetUptimeDto {
     @IsUUID()
@@ -36,5 +38,7 @@ export class GetUptimeDto {
     updatedAt: Date;
 
     @IsArray()
-    logs: any[];
+    @Type(() => GetPingLogDto)
+    @ValidateNested({ each: true })
+    logs: GetPingLogDto[];
 }
