@@ -75,7 +75,7 @@ jobs:
 
       - name: Create .env file for Prisma
         run: |
-          cat > apps/backend-uptime/.env << EOF
+          cat > .env << EOF
           DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@127.0.0.1:5432/${{ secrets.POSTGRES_DB }}?schema=public
           EOF
 
