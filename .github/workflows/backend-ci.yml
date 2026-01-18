@@ -73,6 +73,12 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate --schema apps/backend-uptime/prisma/schema.prisma
 
+      - name: Create .env file for Prisma
+        run: |
+          cat > apps/backend-uptime/.env << EOF
+          DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@127.0.0.1:5432/${{ secrets.POSTGRES_DB }}?schema=public
+          EOF
+
       - name: Wait for services
         run: |
           until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
