@@ -7,6 +7,7 @@ on:
     paths:
       - 'apps/backend-uptime/**'
       - '.github/workflows/backend-ci.yml'
+      - 'package-lock.json'
 
 jobs:
   test-and-build:
@@ -23,7 +24,6 @@ jobs:
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-      POSTGRES_PORT: 5432
 
       DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@127.0.0.1:5432/${{ secrets.POSTGRES_DB }}?schema=public
 
@@ -56,10 +56,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    defaults:
-      run:
-        working-directory: apps/backend-uptime
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -69,37 +65,35 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: apps/backend-uptime/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: npx prisma generate --workspace apps/backend-uptime
 
       - name: Wait for services
         run: |
-          echo "Waiting for Postgres..."
           until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do sleep 2; done
-          echo "Waiting for Redis..."
           until redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG; do sleep 2; done
 
       - name: Run migrations
-        run: npx prisma migrate deploy
+        run: npx prisma migrate deploy --workspace apps/backend-uptime
 
       - name: Run tests
-        run: npm test
+        run: npm test --workspace apps/backend-uptime
 
       - name: Build application
-        run: npm run build
+        run: npm run build --workspace apps/backend-uptime
 
       - name: Check build output
         run: |
-          if [ ! -d "dist" ]; then
+          if [ ! -d "apps/backend-uptime/dist" ]; then
             echo "Build failed: dist directory not found"
             exit 1
           fi
-          if [ ! -f "dist/main.js" ]; then
+          if [ ! -f "apps/backend-uptime/dist/main.js" ]; then
             echo "Build failed: main.js not found"
             exit 1
           fi
