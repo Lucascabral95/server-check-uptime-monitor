@@ -70,13 +70,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema apps/backend-uptime/prisma/schema.prisma
-
-      - name: Create .env file for Prisma
+      - name: Create .env file
         run: |
-          cat > .env << EOF
+          cat > apps/backend-uptime/.env << EOF
           DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@127.0.0.1:5432/${{ secrets.POSTGRES_DB }}?schema=public
+          NODE_ENV=test
+          PORT=${{ secrets.PORT }}
+          SECRET_JWT=${{ secrets.SECRET_JWT }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+          MY_URL_FRONTEND=${{ secrets.MY_URL_FRONTEND }}
+          REDIS_HOST=127.0.0.1
+          REDIS_PORT=6379
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
           EOF
 
       - name: Wait for services
@@ -93,8 +98,13 @@ jobs:
           done
           echo "Redis is ready"
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: apps/backend-uptime
+
       - name: Run migrations
-        run: npx prisma migrate deploy --schema apps/backend-uptime/prisma/schema.prisma
+        run: npx prisma migrate deploy
+        working-directory: apps/backend-uptime
 
       - name: Run tests
         run: npm test --workspace apps/backend-uptime
