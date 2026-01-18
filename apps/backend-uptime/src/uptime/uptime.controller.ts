@@ -6,10 +6,16 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { RequestUserDto } from 'src/user/dto';
+import { HttpPoolService } from './services/http-pool.service';
+import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
 
 @Controller('uptime')
 export class UptimeController {
-  constructor(private readonly uptimeService: UptimeService) {}
+  constructor(
+    private readonly uptimeService: UptimeService,
+    private readonly httpPoolService: HttpPoolService,
+    private readonly pingLogBufferService: PingLogBufferService,
+  ) {}
   
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -42,5 +48,21 @@ export class UptimeController {
   remove(@Param('id') id: string, @Request() req: RequestUserDto) {
     return this.uptimeService.remove(id, req.user.dbUserId);
   }
+
+  @Get('stats')
+    getStats() {
+        return {
+            httpPool: this.httpPoolService.getStats(),
+            buffer: this.pingLogBufferService.getStats(),
+            pools: this.httpPoolService.getPoolInfo(),
+            bufferUtilization: this.pingLogBufferService.getBufferUtilization(),
+        };
+    }
+
+    @Get('flush')
+    async forceFlush() {
+        await this.pingLogBufferService.forceFlush();
+        return { message: 'Buffer flushed successfully' };
+    }
 }
 

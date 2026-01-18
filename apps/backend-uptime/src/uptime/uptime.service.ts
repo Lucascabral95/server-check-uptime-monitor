@@ -22,181 +22,251 @@ export class UptimeService {
         @InjectQueue('uptime-monitor') private readonly monitorQueue: Queue,
     ) {}
 
-  async create(createUptimeDto: CreateUptimeDto) {
-    try {
-      const { name, url, frequency, userId } = createUptimeDto;
+    async create(createUptimeDto: CreateUptimeDto) {
+        try {
+            const { name, url, frequency, userId } = createUptimeDto;
 
-      const userExists = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
+            const userExists = await this.prisma.user.findUnique({
+                where: { id: userId },
+                select: { id: true },
+            });
 
-      if (!userExists) {
-        throw new NotFoundException(`User with id '${userId}' does not exist. Please create a user first.`);
-      }
+            if (!userExists) {
+                throw new NotFoundException(
+                    `User with id '${userId}' does not exist. Please create a user first.`,
+                );
+            }
 
-      const now = new Date();
-      const nextCheck = new Date(now.getTime() + frequency * 1000);
+            const now = new Date();
+            const nextCheck = new Date(now.getTime() + frequency * 1000);
 
-      const createUptime = await this.prisma.monitor.create({
-        data: {
-          userId,
-          name,
-          url,
-          frequency,
-          nextCheck,
-          isActive: true,
-        },
-      });
+            const monitor = await this.prisma.monitor.create({
+                data: {
+                    userId,
+                    name,
+                    url,
+                    frequency,
+                    nextCheck,
+                    isActive: true,
+                },
+            });
 
-      // Crear job recurrente que se ejecuta cada 1 minuto
-      // Este job buscará todos los monitors que necesiten check
-      await this.ensureRecurringJobExists();
+            // ✅ NUEVO: Crear job INDIVIDUAL recurrente para este monitor
+            await this.createMonitorJob(monitor.id, monitor.url, monitor.frequency);
 
-      this.logger.log(`Monitor created: ${name} (next check at ${nextCheck})`);
+            this.logger.log(`Monitor created: ${name} (next check at ${nextCheck})`);
 
-      return createUptime;
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw handlePrismaError(error, 'Error creating uptime');
+            return monitor;
+        } catch (error) {
+            if (
+                error instanceof NotFoundException ||
+                error instanceof BadRequestException ||
+                error instanceof InternalServerErrorException
+            ) {
+                throw error;
+            }
+            throw handlePrismaError(error, 'Error creating uptime');
+        }
     }
-  }
-  
-  async findAll() {
-    try {
-      const allMonitors = await this.prisma.monitor.findMany();
 
-      if (!allMonitors) {
-        throw new NotFoundException('No monitors found');
-      }
-      
-      return allMonitors;
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw handlePrismaError(error, 'Error creating uptime');
+    async findAll() {
+        try {
+            const allMonitors = await this.prisma.monitor.findMany();
+
+            if (!allMonitors) {
+                throw new NotFoundException('No monitors found');
+            }
+
+            return allMonitors;
+        } catch (error) {
+            if (
+                error instanceof NotFoundException ||
+                error instanceof BadRequestException ||
+                error instanceof InternalServerErrorException
+            ) {
+                throw error;
+            }
+            throw handlePrismaError(error, 'Error creating uptime');
+        }
     }
-  }
-  
-  async findOne(id: string, userId?: string) {
-    await this.verifyOwnerMonitorByUserId(userId);
 
-    try {
-      const monitor = await this.prisma.monitor.findUnique({
-        where: {
-          id,
-        },
-      });
+    async findOne(id: string, userId?: string) {
+        await this.verifyOwnerMonitorByUserId(id, userId);
 
-      if (!monitor) {
-        throw new NotFoundException('Monitor not found');
-      }
+        try {
+            const monitor = await this.prisma.monitor.findUnique({
+                where: {
+                    id,
+                },
+            });
 
-      return monitor;
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw handlePrismaError(error, 'Error creating uptime');
+            if (!monitor) {
+                throw new NotFoundException('Monitor not found');
+            }
+
+            return monitor;
+        } catch (error) {
+            if (
+                error instanceof NotFoundException ||
+                error instanceof BadRequestException ||
+                error instanceof InternalServerErrorException
+            ) {
+                throw error;
+            }
+            throw handlePrismaError(error, 'Error creating uptime');
+        }
     }
-  }
-  
-  async update(id: string, updateUptimeDto: UpdateUptimeDto, userId: string) {
-    await this.findOne(id, userId);
-    
-    try {
-       const monitorUpdated = await this.prisma.monitor.update({
-        where: {
-          id,
-          userId,
-        },
-        data: {
-          ...updateUptimeDto,
-        },
-       })
 
-   return {
-    message: `Monitor ${monitorUpdated.id} updated successfully`,
-    monitor: monitorUpdated,
-   }
-   
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw handlePrismaError(error, 'Error creating uptime');
-    } 
-  }
-  
-  async remove(id: string, userId: string) {
-   await this.findOne(id, userId);
-   
-    try {
-     await this.prisma.monitor.delete({
-       where: {
-         id,
-       },
-     });
+    async update(id: string, updateUptimeDto: UpdateUptimeDto, userId: string) {
+        await this.findOne(id, userId);
 
-     return "Monitor deleted successfully";
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw handlePrismaError(error, 'Error creating uptime');
+        try {
+            const monitorUpdated = await this.prisma.monitor.update({
+                where: {
+                    id,
+                    userId,
+                },
+                data: {
+                    ...updateUptimeDto,
+                },
+            });
+
+            if (updateUptimeDto.frequency || updateUptimeDto.isActive !== undefined) {
+                await this.updateMonitorJob(
+                    id,
+                    monitorUpdated.url,
+                    monitorUpdated.frequency,
+                    monitorUpdated.isActive ?? true,
+                );
+            }
+
+            return {
+                message: `Monitor ${monitorUpdated.id} updated successfully`,
+                monitor: monitorUpdated,
+            };
+        } catch (error) {
+            if (
+                error instanceof NotFoundException ||
+                error instanceof BadRequestException ||
+                error instanceof InternalServerErrorException
+            ) {
+                throw error;
+            }
+            throw handlePrismaError(error, 'Error creating uptime');
+        }
     }
-  }
 
-  //////// Verificar si el monitor pertenece al usuario (por userId) que lo creo
-  async verifyOwnerMonitorByUserId(userId: string ) {
+    async remove(id: string, userId: string) {
+        await this.findOne(id, userId);
+
+        try {
+            await this.removeMonitorJob(id);
+
+            await this.prisma.monitor.delete({
+                where: {
+                    id,
+                },
+            });
+
+            return 'Monitor deleted successfully';
+        } catch (error) {
+            if (
+                error instanceof NotFoundException ||
+                error instanceof BadRequestException ||
+                error instanceof InternalServerErrorException
+            ) {
+                throw error;
+            }
+            throw handlePrismaError(error, 'Error creating uptime');
+        }
+    }
+
+    // Verificar si el monitor pertenece al usuario (por userId) que lo creo
+    async verifyOwnerMonitorByUserId(monitorId: string, userId: string): Promise<void> {
     try {
-       const monitorSearched = await this.prisma.monitor.findFirst({
-        where: {
-          userId,
-        },
-        select: {
-          userId: true,
-        },
-       })
+        const monitor = await this.prisma.monitor.findUnique({
+            where: { 
+                id: monitorId 
+            },
+            select: {
+                userId: true,
+            },
+        });
 
-       if (!monitorSearched) {
-        throw new UnauthorizedException('You are not authorized to access this monitor');
-       }
+        if (!monitor) {
+            throw new NotFoundException(`Monitor with id '${monitorId}' not found`);
+        }
 
-       return;
+        if (monitor.userId !== userId) {
+            throw new UnauthorizedException(
+                'You are not authorized to access this monitor',
+            );
+        }
+
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw handlePrismaError(error, 'Error creating uptime');
+        if (
+            error instanceof NotFoundException ||
+            error instanceof UnauthorizedException ||
+            error instanceof BadRequestException ||
+            error instanceof InternalServerErrorException
+        ) {
+            throw error;
+        }
+        throw handlePrismaError(error, 'Error verifying monitor ownership');
     }
-  }
+}
 
-  /**
-   * Asegura que exista un job recurrente que escanee los monitors cada minuto
-   * Este job se crea solo una vez (usando jobId único)
-   */
-  private async ensureRecurringJobExists() {
-    const jobId = 'global-monitor-scan';
+    // Crea un job recurrente individual para un monitor específico.
+    private async createMonitorJob(monitorId: string, _url: string, frequency: number) {
+        const jobId = `monitor:${monitorId}`;
 
-    // Verificar si el job ya existe
-    const existingJob = await this.monitorQueue.getJob(jobId);
+        await this.monitorQueue.add(
+            'check-monitor',
+            {
+                monitorId,
+            },
+            {
+                jobId, // ID único para evitar duplicados
+                repeat: {
+                    every: frequency * 1000, // Frecuencia del monitor en ms
+                },
+            },
+        );
 
-    if (!existingJob) {
-      await this.monitorQueue.add(
-        'scan-monitors',
-        { timestamp: Date.now() },
-        {
-          jobId,
-          repeat: {
-            every: 60000, // Cada 60 segundos (1 minuto)
-          },
-        },
-      );
-      this.logger.log('Recurring monitor scan job created (runs every 1 minute)');
+        this.logger.log(
+            `Monitor job created: ${monitorId} (frequency: ${frequency}s)`,
+        );
     }
-  }
+
+    // Actualiza el job recurrente de un monitor cuando cambia frecuencia o estado.
+    private async updateMonitorJob(
+        monitorId: string,
+        _url: string,
+        frequency: number,
+        isActive: boolean,
+    ) {
+        const jobId = `monitor:${monitorId}`;
+
+        // Eliminar el job anterior
+        await this.monitorQueue.remove(jobId);
+
+        // Si el monitor sigue activo, crear nuevo job con la frecuencia actualizada
+        if (isActive) {
+            await this.createMonitorJob(monitorId, '', frequency);
+        } else {
+            this.logger.log(`Monitor job removed: ${monitorId} (monitor inactive)`);
+        }
+    }
+
+    // Elimina el job recurrente de un monitor.
+    private async removeMonitorJob(monitorId: string): Promise<void> {
+        const jobId = `monitor:${monitorId}`;
+
+        try {
+            await this.monitorQueue.remove(jobId);
+            this.logger.log(`Monitor job removed: ${monitorId}`);
+        } catch (error) {
+            this.logger.warn(`Monitor job not found for removal: ${monitorId}`);
+        }
+    }
 }
