@@ -13,6 +13,31 @@ jobs:
     name: Test and Build
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: apps/backend-uptime
@@ -33,6 +58,20 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate
+
+      - name: Setup environment variables
+        run: |
+          cat > .env << EOF
+          PORT=${{ secrets.PORT }}
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          SECRET_JWT=${{ secrets.SECRET_JWT }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+          MY_URL_FRONTEND=${{ secrets.MY_URL_FRONTEND }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          EOF
 
       - name: Run tests
         run: npm test
