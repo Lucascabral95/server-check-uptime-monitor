@@ -1,34 +1,54 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { PingLogService } from './ping-log.service';
-import { CreatePingLogDto } from './dto/create-ping-log.dto';
-import { UpdatePingLogDto } from './dto/update-ping-log.dto';
+import { RequestUserDto } from 'src/user/dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { GetPingLogDto } from './dto';
 
+@ApiTags('Ping Logs')
+@ApiBearerAuth('jwt-auth')
 @Controller('ping-log')
+@UseGuards(JwtAuthGuard)
 export class PingLogController {
   constructor(private readonly pingLogService: PingLogService) {}
 
-  @Post()
-  create(@Body() createPingLogDto: CreatePingLogDto) {
-    return this.pingLogService.create(createPingLogDto);
+  // @Patch(':id')
+  // update(@Param('id') id: string, @Body() updatePingLogDto: UpdatePingLogDto) {
+  //   return this.pingLogService.update(id, updatePingLogDto);
+  // }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Eliminar PingLog por ID' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'PingLog deleted successfully' })
+  remove(@Param('id') id: string): Promise<string> {
+    return this.pingLogService.remove(id);
   }
 
+  // GET for all ping logs
   @Get()
+  @ApiOperation({ summary: 'Obtener todos los PingLogs (admin/debug)' })
+  @ApiResponse({ status: 200, type: [GetPingLogDto] })
   findAll() {
     return this.pingLogService.findAll();
   }
 
-  @Get(':id')
+  // Obtener ping logs de monitors creados por un usuario
+  @Get("user/my-logs")
+  @ApiOperation({ summary: 'Obtener PingLogs de los monitores del usuario autenticado' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'monitorId', required: false, type: String })
+  findAllByUser(@Request() req: RequestUserDto, @Query() paginationDto: PaginationPingLogDto) {
+    return this.pingLogService.findAllPingLogsByUser(req.user.dbUserId, paginationDto);
+  }
+
+  @Get('id/:id')
+  @ApiOperation({ summary: 'Obtener PingLog por ID' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, type: GetPingLogDto })
   findOne(@Param('id') id: string) {
     return this.pingLogService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePingLogDto: UpdatePingLogDto) {
-    return this.pingLogService.update(id, updatePingLogDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.pingLogService.remove(id);
   }
 }
