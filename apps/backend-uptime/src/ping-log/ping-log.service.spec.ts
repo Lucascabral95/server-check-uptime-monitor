@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as errors from 'src/errors';
+import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
 
 jest.mock('src/errors', () => ({
   handlePrismaError: jest.fn(),
@@ -21,6 +22,8 @@ describe('PingLogService', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
     },
   };
 
@@ -90,13 +93,14 @@ describe('PingLogService', () => {
       expect(prisma.pingLog.findMany).toHaveBeenCalled();
     });
 
-    it('should return null if empty', async () => {
-  mockPrismaService.pingLog.findMany.mockResolvedValue(null);
+    it('should return empty array if no logs found', async () => {
+      mockPrismaService.pingLog.findMany.mockResolvedValue([]);
 
-  const result = await service.findAll();
+      const result = await service.findAll();
 
-  expect(result).toBeNull();
-});
+      expect(result).toEqual([]);
+      expect(prisma.pingLog.findMany).toHaveBeenCalled();
+    });
 
   });
 
@@ -147,9 +151,148 @@ describe('PingLogService', () => {
   });
 
   describe('remove', () => {
-    it('should return fixture message', () => {
-      const result = service.remove('1');
-      expect(result).toBe('Fixture No available for remove.');
+    it('should delete a ping log successfully', async () => {
+      const log = { id: '1' };
+      mockPrismaService.pingLog.findUnique.mockResolvedValue(log);
+      mockPrismaService.pingLog.delete.mockResolvedValue(log);
+
+      const result = await service.remove('1');
+
+      expect(prisma.pingLog.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
+      expect(prisma.pingLog.delete).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
+      expect(result).toBe('PingLog deleted successfully');
+    });
+
+    it('should throw NotFoundException if ping log does not exist', async () => {
+      mockPrismaService.pingLog.findUnique.mockResolvedValue(null);
+
+      await expect(service.remove('1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllPingLogsByUser', () => {
+    it('should return paginated ping logs for a user', async () => {
+      const userId = 'user-1';
+      const paginationDto: PaginationPingLogDto = {
+        page: 1,
+        limit: 10,
+      };
+
+      const logs = [
+        { id: '1', monitorId: 'monitor-1' },
+        { id: '2', monitorId: 'monitor-2' },
+      ];
+
+      mockPrismaService.pingLog.findMany.mockResolvedValue(logs);
+      mockPrismaService.pingLog.count.mockResolvedValue(2);
+
+      const result = await service.findAllPingLogsByUser(userId, paginationDto);
+
+      expect(result).toEqual({
+        data: logs,
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          nextPage: null,
+          prevPage: null,
+          totalItems: 2,
+          itemsPerPage: 10,
+        },
+      });
+      expect(prisma.pingLog.findMany).toHaveBeenCalledWith({
+        where: {
+          monitor: {
+            userId: userId,
+          },
+        },
+        skip: 0,
+        take: 10,
+        orderBy: { timestamp: 'desc' },
+      });
+    });
+
+    it('should return paginated ping logs filtered by monitorId', async () => {
+      const userId = 'user-1';
+      const paginationDto: PaginationPingLogDto = {
+        page: 1,
+        limit: 10,
+        monitorId: 'monitor-1',
+      };
+
+      const logs = [{ id: '1', monitorId: 'monitor-1' }];
+
+      mockPrismaService.pingLog.findMany.mockResolvedValue(logs);
+      mockPrismaService.pingLog.count.mockResolvedValue(1);
+
+      const result = await service.findAllPingLogsByUser(userId, paginationDto);
+
+      expect(result.data).toEqual(logs);
+      expect(prisma.pingLog.findMany).toHaveBeenCalledWith({
+        where: {
+          monitor: {
+            userId: userId,
+          },
+          monitorId: 'monitor-1',
+        },
+        skip: 0,
+        take: 10,
+        orderBy: { timestamp: 'desc' },
+      });
+    });
+
+    it('should calculate pagination correctly', async () => {
+      const userId = 'user-1';
+      const paginationDto: PaginationPingLogDto = {
+        page: 2,
+        limit: 5,
+      };
+
+      const logs = [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }, { id: '5' }];
+
+      mockPrismaService.pingLog.findMany.mockResolvedValue(logs);
+      mockPrismaService.pingLog.count.mockResolvedValue(12);
+
+      const result = await service.findAllPingLogsByUser(userId, paginationDto);
+
+      expect(result.pagination).toEqual({
+        currentPage: 2,
+        totalPages: 3,
+        nextPage: 3,
+        prevPage: 1,
+        totalItems: 12,
+        itemsPerPage: 5,
+      });
+      expect(prisma.pingLog.findMany).toHaveBeenCalledWith({
+        where: {
+          monitor: {
+            userId: userId,
+          },
+        },
+        skip: 5,
+        take: 5,
+        orderBy: { timestamp: 'desc' },
+      });
+    });
+
+    it('should return empty array with pagination when no logs found', async () => {
+      const userId = 'user-1';
+      const paginationDto: PaginationPingLogDto = {
+        page: 1,
+        limit: 10,
+      };
+
+      mockPrismaService.pingLog.findMany.mockResolvedValue([]);
+      mockPrismaService.pingLog.count.mockResolvedValue(0);
+
+      const result = await service.findAllPingLogsByUser(userId, paginationDto);
+
+      expect(result.data).toEqual([]);
+      expect(result.pagination.totalItems).toBe(0);
+      expect(result.pagination.totalPages).toBe(0);
     });
   });
 });

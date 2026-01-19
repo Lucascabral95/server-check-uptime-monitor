@@ -9,6 +9,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { CreateUptimeDto } from './dto/create-uptime.dto';
 import { UpdateUptimeDto } from './dto/update-uptime.dto';
+import { PaginationUptimeDto, PaginatedResponseDto } from './dto/pagination-uptime.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
@@ -69,15 +70,44 @@ export class UptimeService {
         }
     }
 
-    async findAll() {
+    async findAll(paginationDto: PaginationUptimeDto = {}): Promise<PaginatedResponseDto<any>> {
         try {
-            const allMonitors = await this.prisma.monitor.findMany();
+            const { page = 1, limit = 10, userId, status } = paginationDto;
+            const skip = (page - 1) * limit;
 
-            if (!allMonitors) {
-                throw new NotFoundException('No monitors found');
+            const where: any = {};
+
+            if (userId) {
+                where.userId = userId;
             }
 
-            return allMonitors;
+            if (status) {
+                where.status = status;
+            }
+
+            const [data, totalItems] = await Promise.all([
+                this.prisma.monitor.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                this.prisma.monitor.count({ where }),
+            ]);
+
+            const totalPages = Math.ceil(totalItems / limit);
+
+            return {
+                data,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    nextPage: page < totalPages ? page + 1 : null,
+                    prevPage: page > 1 ? page - 1 : null,
+                    totalItems,
+                    itemsPerPage: limit,
+                },
+            };
         } catch (error) {
             if (
                 error instanceof NotFoundException ||
@@ -86,7 +116,7 @@ export class UptimeService {
             ) {
                 throw error;
             }
-            throw handlePrismaError(error, 'Error creating uptime');
+            throw handlePrismaError(error, 'Error fetching monitors');
         }
     }
 
