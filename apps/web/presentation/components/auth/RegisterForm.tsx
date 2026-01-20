@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from 'next/navigation';
-import { useForm, watch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { LoginException } from '@/infraestructure/interfaces';
@@ -25,6 +25,7 @@ export function RegisterForm({ error, isLoading, onRegister }: RegisterFormProps
     watch,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
+    mode: 'onTouched',
     defaultValues: {
       email: '',
       password: '',

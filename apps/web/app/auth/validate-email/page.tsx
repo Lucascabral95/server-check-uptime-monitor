@@ -1,12 +1,12 @@
 "use client"
 
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-
 import { AuthCard } from "@/presentation/components/auth/AuthCard";
 import { ValidateEmailForm } from "@/presentation/components/auth/ValidateEmailForm";
 import { useAuth } from '@/lib/hooks/useAuth';
 
-export default function ValidateEmail() {
+function ValidateEmailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { error, isLoading, confirmEmail, resendCode } = useAuth();
@@ -51,5 +51,13 @@ export default function ValidateEmail() {
         onResendCode={handleResend}
       />
     </AuthCard>
+  );
+}
+
+export default function ValidateEmail() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <ValidateEmailContent />
+    </Suspense>
   );
 }

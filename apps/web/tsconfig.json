@@ -17,9 +17,13 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "types": ["vitest/globals"],
     "plugins": [
       {
         "name": "next"
+      },
+      {
+        "name": "vitest"
       }
     ],
     "paths": {
@@ -31,10 +35,13 @@
   },
   "include": [
     "next-env.d.ts",
+    "vitest.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "vitest.setup.ts",
+    "vitest.mocks.ts"
   ],
   "exclude": [
     "node_modules"
