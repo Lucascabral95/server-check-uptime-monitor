@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)",
+      "Bash(Select-Object:*)",
+      "Bash(npm run test:*)"
+    ]
+  }
+}
