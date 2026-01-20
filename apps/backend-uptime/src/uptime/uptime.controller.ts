@@ -37,6 +37,24 @@ export class UptimeController {
   findAll(@Query() paginationDto: PaginationUptimeDto) {
     return this.uptimeService.findAll(paginationDto);
   }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Obtener estadísticas internas del sistema' })
+    getStats() {
+        return {
+            httpPool: this.httpPoolService.getStats(),
+            buffer: this.pingLogBufferService.getStats(),
+            pools: this.httpPoolService.getPoolInfo(),
+            bufferUtilization: this.pingLogBufferService.getBufferUtilization(),
+        };
+    }
+
+    @Get('flush')
+    @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
+    async forceFlush() {
+        await this.pingLogBufferService.forceFlush();
+        return { message: 'Buffer flushed successfully' };
+    }
   
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -66,23 +84,5 @@ export class UptimeController {
   remove(@Param('id') id: string, @Request() req: RequestUserDto) {
     return this.uptimeService.remove(id, req.user.dbUserId);
   }
-
-  @Get('stats')
-  @ApiOperation({ summary: 'Obtener estadísticas internas del sistema' })
-    getStats() {
-        return {
-            httpPool: this.httpPoolService.getStats(),
-            buffer: this.pingLogBufferService.getStats(),
-            pools: this.httpPoolService.getPoolInfo(),
-            bufferUtilization: this.pingLogBufferService.getBufferUtilization(),
-        };
-    }
-
-    @Get('flush')
-    @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
-    async forceFlush() {
-        await this.pingLogBufferService.forceFlush();
-        return { message: 'Buffer flushed successfully' };
-    }
 }
 
