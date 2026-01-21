@@ -18,7 +18,7 @@ interface SignUpResult {
 }
 
 class AuthService {
-  private static readonly COOKIE_MAX_AGE = 60 * 60; // 1 hora
+  private static readonly COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
 
   async register(credentials: RegisterCredentials): Promise<{ isComplete: boolean; userId: string }> {
     const { email, password } = credentials;
