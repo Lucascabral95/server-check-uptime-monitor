@@ -5,7 +5,8 @@
       "Bash(npm install:*)",
       "Bash(npm ls:*)",
       "Bash(Select-Object:*)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(npm test:*)"
     ]
   }
 }
