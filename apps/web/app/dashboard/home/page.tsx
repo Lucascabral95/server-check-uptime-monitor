@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FiPlus } from "react-icons/fi";
-import { Status } from "@prisma/client";
-import { SortBy } from "@/infraestructure/interfaces";
+import { Status, SortBy } from "@/infraestructure/interfaces";
 
 import { FiltersMonitor } from "@/presentation/components/Filters";
 import useUptime from "@/presentation/hooks/useUptime.hook";

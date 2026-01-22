@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { CiFilter } from "react-icons/ci";
 import { MdOutlineSwapVert } from "react-icons/md";
 import { IoClose } from "react-icons/io5";
-import { Status } from "@prisma/client";
-import { SortBy } from "@/infraestructure/interfaces";
+import { Status, SortBy } from "@/infraestructure/interfaces";
 
 import "./FiltersMonitor.scss";
 import FilterMonitorInside from "./FilterMonitorInside";

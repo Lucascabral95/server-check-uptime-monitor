@@ -1,6 +1,6 @@
 import { IoMdClose } from "react-icons/io";
 import { useState } from "react";
-import { Status } from "@prisma/client";
+import { Status } from "@/infraestructure/interfaces";
 import "./FiltersMonitor.scss";
 
 type StatusType = Status | "ALL" | null;

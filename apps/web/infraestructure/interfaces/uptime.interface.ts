@@ -1,4 +1,4 @@
-import { Status } from '@prisma/client';
+import { Status } from './enums';
 
 // Monitor uptime interface
 export interface GetUptimeDto {

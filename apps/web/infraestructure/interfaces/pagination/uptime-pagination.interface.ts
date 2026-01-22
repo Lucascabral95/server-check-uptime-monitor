@@ -1,4 +1,4 @@
-import { Status } from '@prisma/client';
+import { Status } from '../enums';
 
 export enum SortBy {
     RECENT = 'recent',

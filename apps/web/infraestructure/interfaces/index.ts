@@ -3,5 +3,6 @@ export * from './register.interface';
 export * from './validate-email.interface';
 export * from './uptime.interface';
 export * from './user.interface';
+export * from './enums';
 
 export * from './pagination';
