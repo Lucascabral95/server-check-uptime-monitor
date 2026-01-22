@@ -141,4 +141,26 @@ async findOne(id: string, currentUserId?: string) {
       },
     });
   }
+
+  async findOrCreateByCognitoSub(cognitoSub: string, email?: string) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { cognitoSub },
+    });
+
+    if (existingUser) {
+      return existingUser;
+    }
+
+    if (!email) {
+      throw new BadRequestException('Email is required for user creation');
+    }
+
+    return this.prisma.user.create({
+      data: {
+        email,
+        cognitoSub,
+        role: Role.USER,
+      },
+    });
+  }
 }

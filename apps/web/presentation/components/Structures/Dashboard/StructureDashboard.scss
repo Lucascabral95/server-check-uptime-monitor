@@ -88,8 +88,10 @@ $color-background-content: #131A25;
         flex: 1;
         color: white;
         overflow-y: auto;
+        overflow-x: hidden;
         position: relative;
         z-index: 10;
+        box-sizing: border-box;
     }
 }
 

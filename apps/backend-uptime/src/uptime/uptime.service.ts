@@ -9,7 +9,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { CreateUptimeDto } from './dto/create-uptime.dto';
 import { UpdateUptimeDto } from './dto/update-uptime.dto';
-import { PaginationUptimeDto, PaginatedResponseDto } from './dto/pagination-uptime.dto';
+import { PaginationUptimeDto, PaginatedResponseDto, SortBy } from './dto/pagination-uptime.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
@@ -72,7 +72,7 @@ export class UptimeService {
 
     async findAll(paginationDto: PaginationUptimeDto = {}): Promise<PaginatedResponseDto<any>> {
         try {
-            const { page = 1, limit = 10, userId, status } = paginationDto;
+            const { page = 1, limit = 10, userId, status, sortBy = SortBy.RECENT, search } = paginationDto;
             const skip = (page - 1) * limit;
 
             const where: any = {};
@@ -85,15 +85,51 @@ export class UptimeService {
                 where.status = status;
             }
 
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { url: { contains: search, mode: 'insensitive' } },
+                ];
+            }
+
+            const orderByMap: Record<SortBy, any> = {
+                [SortBy.RECENT]: { createdAt: 'desc' },
+                [SortBy.OLDEST]: { createdAt: 'asc' },
+                [SortBy.NAME_ASC]: { name: 'asc' },
+                [SortBy.NAME_DESC]: { name: 'desc' },
+                [SortBy.STATUS_DOWN]: { createdAt: 'desc' }, 
+                [SortBy.STATUS_UP]: { createdAt: 'desc' }, 
+            };
+
             const [data, totalItems] = await Promise.all([
                 this.prisma.monitor.findMany({
                     where,
                     skip,
                     take: limit,
-                    orderBy: { createdAt: 'desc' },
+                    orderBy: orderByMap[sortBy],
                 }),
                 this.prisma.monitor.count({ where }),
             ]);
+
+            if (sortBy === SortBy.STATUS_DOWN || sortBy === SortBy.STATUS_UP) {
+                const statusPriority: Record<string, number> = {};
+
+                if (sortBy === SortBy.STATUS_DOWN) {
+                    statusPriority['DOWN'] = 0;
+                    statusPriority['UP'] = 1;
+                    statusPriority['PENDING'] = 2;
+                } else {
+                    statusPriority['UP'] = 0;
+                    statusPriority['DOWN'] = 1;
+                    statusPriority['PENDING'] = 2;
+                }
+
+                (data as any[]).sort((a, b) => {
+                    const priorityA = statusPriority[a.status] ?? 2;
+                    const priorityB = statusPriority[b.status] ?? 2;
+                    return priorityA - priorityB;
+                });
+            }
 
             const totalPages = Math.ceil(totalItems / limit);
 

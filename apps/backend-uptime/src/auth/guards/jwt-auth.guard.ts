@@ -80,12 +80,16 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Token inválido: se requiere un token de acceso o ID');
       }
 
+      let dbUser;
       if (decoded.email) {
-        const dbUser = await this.userService.findOrCreateByEmail({ id: decoded.sub, email: decoded.email });
-        request.user = { ...decoded, dbUserId: dbUser.id, role: dbUser.role };
+        // IdToken: tiene email, usamos el método existente
+        dbUser = await this.userService.findOrCreateByEmail({ id: decoded.sub, email: decoded.email });
       } else {
-        request.user = decoded;
+        // AccessToken: no tiene email, buscamos por cognitoSub
+        dbUser = await this.userService.findOrCreateByCognitoSub(decoded.sub, decoded.email);
       }
+
+      request.user = { ...decoded, dbUserId: dbUser.id, role: dbUser.role };
 
       return true;
     } catch (error) {

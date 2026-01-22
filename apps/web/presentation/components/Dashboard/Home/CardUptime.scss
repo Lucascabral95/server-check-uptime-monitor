@@ -1,0 +1,205 @@
+$background-color-card-uptime: #1C2434;
+$color-border-bottom: #2D3340;
+$padding-card-uptime: 20px;
+
+.card-uptime {
+    width: 100%;
+    background-color: $background-color-card-uptime;
+    
+    .card-uptime-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: $padding-card-uptime;
+        border-bottom: 1px solid $color-border-bottom;
+        cursor: pointer;
+
+        .status-icon-content-main {
+            display: flex;
+            align-items: center;
+
+            .container-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-right: 16px;
+                
+                .icon {
+                    color: green;
+                    font-size: 24px;
+                }
+            }
+
+            .url-request-date {
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  
+                  .text-url {
+                      display: flex;
+                      align-items: center;
+                      margin-bottom: 4px;
+                    
+                    p {
+                        color: white;
+                        font-size: 14px;
+                        font-weight: 600;
+                    }
+                }
+
+                .request-date {
+                    display: flex;
+                    align-items: center;
+                    
+                    .text-protocol {
+                    border: 1px solid #6C7C96;
+                    color: #6C7C96;
+                    font-size: 12px;    
+                    padding: 2px;
+                    border-radius: 1px;
+                    margin-right: 6px;
+                    }
+
+                    .text-date {
+                        color: #A0AEc0;
+                        font-size: 12px;
+                    }
+                }
+            }
+        }
+
+        .more-data {
+            display: flex;
+            align-items: center;
+
+            .reload-frequency {
+                display: flex;
+                align-items: center;
+                margin-right: 26px;
+                
+                .icon {
+                    color: #72839E;
+                    font-size: 14px;
+                    margin-right: 8px;
+                }
+                
+                span {
+                    color: #72839E;
+                    font-size: 15px;
+                }
+            }
+
+            .more {
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 34px;
+                height: 34px;
+               border-radius: 6px;
+               cursor: pointer;
+
+                .icon-more {
+                    color: #72839E;
+                    font-size: 16px;
+                }
+
+                &:hover{
+                    background-color: #131A25;
+                }
+            }
+        }
+
+        &:hover{
+            background-color: #2D3340;
+        }
+    }
+}
+
+// Dropdown Menu Styles
+.menu-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 180px;
+    background-color: #131A25;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    padding: 6px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: all 0.2s ease;
+
+    &.open {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+
+    .menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 6px;
+        background-color: transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+        border: none;
+        width: 100%;
+        text-align: left;
+        font-family: inherit;
+
+        .menu-icon {
+            font-size: 16px;
+            color: #72839E;
+            transition: color 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .menu-text {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        &:hover {
+            background-color: #2D3748;
+
+            .menu-icon {
+                color: #ffffff;
+            }
+
+            .menu-text {
+                color: #ffffff;
+            }
+        }
+
+        &:active {
+            background-color: #1C2434;
+        }
+
+        // Danger variant for delete
+        &.danger {
+            &:hover {
+                background-color: rgba(255, 77, 77, 0.1);
+
+                .menu-icon {
+                    color: #FF4D4D;
+                }
+
+                .menu-text {
+                    color: #FF4D4D;
+                }
+            }
+
+            &:active {
+                background-color: rgba(255, 77, 77, 0.2);
+            }
+        }
+    }
+}

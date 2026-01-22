@@ -7,7 +7,9 @@ export const metadata: Metadata= {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-    return <StructureDashboard>
+    return (
+    <StructureDashboard>
         {children}
-        </StructureDashboard>;
+    </StructureDashboard>
+    ) 
 }
