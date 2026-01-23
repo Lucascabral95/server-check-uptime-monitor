@@ -8,8 +8,8 @@ export interface GetUptimeDto {
   url: string;
   frequency: number;
   isActive: boolean;
-  nextCheck: string;
-  lastCheck: string | null;
+  nextCheck: Date;
+  lastCheck: Date;
   status: Status;
   createdAt: string;
   updatedAt: string;
@@ -20,7 +20,6 @@ export interface CreateUptimeDto {
   name: string;
   url: string;
   frequency?: number;
-  userId: string;
 }
 
 // Update monitor DTO

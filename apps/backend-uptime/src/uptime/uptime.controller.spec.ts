@@ -242,7 +242,6 @@ describe('UptimeController', () => {
         name: 'Test Monitor',
         url: 'https://example.com',
         frequency: 60,
-        userId: 'user-123',
       };
 
       const createdMonitor = {
@@ -257,7 +256,7 @@ describe('UptimeController', () => {
       mockPrismaService.monitor.create.mockResolvedValue(createdMonitor);
       mockQueue.add.mockResolvedValue({ id: 'job-1' });
 
-      const result = await controller.create(createDto);
+      const result = await controller.create(createDto, { user: { dbUserId: 'user-123', role: Role.USER } });
 
       expect(result).toEqual(createdMonitor);
       expect(mockPrismaService.monitor.create).toHaveBeenCalledWith({
@@ -265,7 +264,6 @@ describe('UptimeController', () => {
           name: createDto.name,
           url: createDto.url,
           frequency: createDto.frequency,
-          userId: createDto.userId,
           isActive: true,
         }),
       });

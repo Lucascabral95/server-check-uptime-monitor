@@ -6,9 +6,10 @@ import {
     deleteUptimeById,
     getStatsUptime,
     forceFlushUptime,
+    getMyStatsUser,
 } from "@/lib/Resources/Api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CreateUptimeDto, UpdateUptimeDto, GetAllUptimesDto } from "@/infraestructure/interfaces";
+import { CreateUptimeDto, UpdateUptimeDto, GetAllUptimesDto, GetStatsUserInterface, GetUptimeDto } from "@/infraestructure/interfaces";
 import { PaginationParams } from "@/infraestructure/interfaces";
 
 const useUptime = (id?: string, params?: PaginationParams) => {
@@ -20,7 +21,7 @@ const useUptime = (id?: string, params?: PaginationParams) => {
         queryFn: () => getAllUptimes(params),
     });
 
-    const uptimeById = useQuery({
+    const uptimeById = useQuery<GetUptimeDto>({
         queryKey: ["uptimeById", id],
         queryFn: () => getUptimeById(id!),
         enabled: !!id,
@@ -29,6 +30,11 @@ const useUptime = (id?: string, params?: PaginationParams) => {
     const stats = useQuery({
         queryKey: ["uptimeStats"],
         queryFn: () => getStatsUptime(),
+    });
+
+    const myStats = useQuery<GetStatsUserInterface>({
+        queryKey: ["myStats"],
+        queryFn: () => getMyStatsUser(),
     });
 
     // Mutations
@@ -67,6 +73,7 @@ const useUptime = (id?: string, params?: PaginationParams) => {
         uptimes,
         uptimeById,
         stats,
+        myStats,
 
         // Mutations
         createUptime: createMutation,

@@ -107,10 +107,22 @@ $font-size-title: 2rem;
             }
         }
 
-        /* Firefox scrollbar */
         scrollbar-width: thin;
         scrollbar-color: #3BD671 #1C2434;
     }
+
+    .cont-charts-home {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;   
+  gap: 2rem;
+
+  .c {
+    width: 49%;
+    display: flex;        
+  }
+}
+
 }
 
 // Tablet (768px - 1024px)
@@ -140,6 +152,14 @@ $font-size-title: 2rem;
                 gap: 16px;
             }
         }
+
+        .cont-charts-home {
+    gap: 1.5rem;
+
+    .c {
+      width: 48%;
+    }
+  }
     }
 }
 
@@ -186,6 +206,15 @@ $font-size-title: 2rem;
                 gap: 12px;
             }
         }
+
+        .cont-charts-home {
+    flex-direction: column;
+    gap: 1.5rem;
+
+    .c {
+      width: 100%;
+    }
+  }
     }
 }
 
@@ -217,5 +246,13 @@ $font-size-title: 2rem;
                 width: 4px;
             }
         }
+
+        .cont-charts-home {
+    gap: 1.25rem;
+
+    .c {
+      width: 100%;
+    }
+  }
     }
 }

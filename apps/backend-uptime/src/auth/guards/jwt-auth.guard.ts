@@ -1,11 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ExecutionContext } from '@nestjs/common';
-import { CanActivate } from '@nestjs/common';
+import { ExecutionContext, CanActivate } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PayloadUserDto } from '../../user/dto/payload-user.dto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
 import { UserService } from '../../user/user.service';
-import { Role } from '@prisma/client';
 
 interface JwtHeader {
   kid: string;
@@ -28,120 +27,167 @@ interface CachedPublicKey {
   expiry: number;
 }
 
+interface DecodedToken extends PayloadUserDto {
+  aud?: string;
+  client_id?: string;
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private userService: UserService) {}
-
-  private jwksCache: Map<string, CachedPublicKey> = new Map();
-  private pendingFetches: Map<string, Promise<string>> = new Map();
-  private readonly CACHE_DURATION = 300000;
+  private readonly jwksCache = new Map<string, CachedPublicKey>();
+  private readonly pendingFetches = new Map<string, Promise<string>>();
+  private readonly CACHE_DURATION = 300000; // 5 minutos
   private readonly MAX_CACHE_SIZE = 100;
+  private readonly expectedAudience?: string;
+  private readonly expectedIssuer?: string;
+
+  constructor(
+    private readonly userService: UserService,
+    private readonly configService: ConfigService,
+  ) {
+    this.expectedAudience = this.configService.get<string>('COGNITO_CLIENT_ID');
+    this.expectedIssuer = this.configService.get<string>('COGNITO_ISSUER');
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization;
+    const token = this.extractToken(request);
+    
+    const header = this.decodeHeader(token);
+    const payload = this.decodePayload(token);
+    
+    this.validateTokenStructure(header, payload);
+    
+    const publicKey = await this.getCognitoPublicKey(payload.iss, header.kid);
+    const decoded = this.verifyToken(token, publicKey, payload.iss);
+    
+    const dbUser = await this.findOrCreateUser(decoded);
+    
+    request.user = {
+      ...decoded,
+      dbUserId: dbUser.id,
+      userId: dbUser.id,
+      role: dbUser.role,
+    };
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return true;
+  }
+
+  private extractToken(request: any): string {
+    const authHeader = request.headers.authorization;
+    
+    if (!authHeader?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Token no proporcionado');
     }
 
-    const token = authHeader.substring(7);
+    return authHeader.substring(7);
+  }
 
-    const header = this.decodeHeader(token);
+  private validateTokenStructure(header: JwtHeader, payload: DecodedToken): void {
     if (!header.kid) {
-      throw new UnauthorizedException('Token inválido: falta kid');
+      throw new UnauthorizedException('Token inválido: falta kid en header');
     }
 
-    const payload = this.decodePayload(token);
-    if (!payload.iss) {
-      throw new UnauthorizedException('Token inválido: falta iss');
+    if (!payload.iss?.includes('cognito-idp')) {
+      throw new UnauthorizedException('Token no es de AWS Cognito');
     }
 
-    if (!payload.iss.includes('cognito-idp')) {
-      throw new UnauthorizedException('Token inválido: no es un token de Cognito');
+    if (!['access', 'id'].includes(payload.token_use)) {
+      throw new UnauthorizedException(
+        'Token inválido: se requiere token de acceso o ID'
+      );
     }
 
-    let publicKey: string;
-    try {
-      publicKey = await this.getCognitoPublicKey(payload.iss, header.kid);
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
+    if (this.expectedAudience) {
+      const tokenAudience = payload.aud || payload.client_id;
+      if (tokenAudience !== this.expectedAudience) {
+        throw new UnauthorizedException('Token audience inválido');
       }
-      throw new UnauthorizedException('Error al verificar el token');
     }
 
-    try {
-      const decoded = jwt.verify(token, publicKey, {
-        issuer: payload.iss,
-      }) as PayloadUserDto;
-
-      if (decoded.token_use !== 'access' && decoded.token_use !== 'id') {
-        throw new UnauthorizedException('Token inválido: se requiere un token de acceso o ID');
-      }
-
-      let dbUser;
-      if (decoded.email) {
-        // IdToken: tiene email, usamos el método existente
-        dbUser = await this.userService.findOrCreateByEmail({ id: decoded.sub, email: decoded.email });
-      } else {
-        // AccessToken: no tiene email, buscamos por cognitoSub
-        dbUser = await this.userService.findOrCreateByCognitoSub(decoded.sub, decoded.email);
-      }
-
-      request.user = { ...decoded, dbUserId: dbUser.id, role: dbUser.role };
-
-      return true;
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      if (error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException('Token expirado');
-      }
-      if (error.name === 'JsonWebTokenError') {
-        throw new UnauthorizedException('Token inválido: firma no válida');
-      }
-      if (error.name === 'NotBeforeError') {
-        throw new UnauthorizedException('Token no es válido aún');
-      }
-      console.error('Error en JwtAuthGuard:', error);
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      throw new UnauthorizedException(`Token inválido: ${error.message}`);
+    if (this.expectedIssuer && payload.iss !== this.expectedIssuer) {
+      throw new UnauthorizedException('Token issuer inválido');
     }
   }
 
   private decodeHeader(token: string): JwtHeader {
+    return this.decodeBase64Json(token, 0, 'header');
+  }
+
+  private decodePayload(token: string): DecodedToken {
+    return this.decodeBase64Json(token, 1, 'payload');
+  }
+
+  private decodeBase64Json<T>(token: string, partIndex: number, partName: string): T {
     const parts = token.split('.');
+    
     if (parts.length !== 3) {
       throw new UnauthorizedException('Token inválido: formato incorrecto');
     }
 
     try {
-      return JSON.parse(Buffer.from(parts[0], 'base64').toString('utf-8'));
+      const decoded = Buffer.from(parts[partIndex], 'base64').toString('utf-8');
+      return JSON.parse(decoded);
     } catch {
-      throw new UnauthorizedException('Token inválido: no se puede decodificar el header');
+      throw new UnauthorizedException(`Token inválido: no se puede decodificar ${partName}`);
     }
   }
 
-  private decodePayload(token: string): PayloadUserDto {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      throw new UnauthorizedException('Token inválido: formato incorrecto');
+  private verifyToken(token: string, publicKey: string, issuer: string): DecodedToken {
+    try {
+      return jwt.verify(token, publicKey, {
+        issuer,
+        algorithms: ['RS256'], 
+      }) as DecodedToken;
+    } catch (error) {
+      this.handleVerificationError(error);
+    }
+  }
+
+  private handleVerificationError(error: any): never {
+    const errorMessages: Record<string, string> = {
+      TokenExpiredError: 'Token expirado',
+      JsonWebTokenError: 'Token inválido: firma no válida',
+      NotBeforeError: 'Token no es válido aún',
+    };
+
+    const message = errorMessages[error.name] || `Token inválido: ${error.message}`;
+    
+    if (!errorMessages[error.name]) {
+      console.error('Error inesperado en verificación JWT:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
     }
 
+    throw new UnauthorizedException(message);
+  }
+
+  private async findOrCreateUser(decoded: DecodedToken) {
     try {
-      return JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-    } catch {
-      throw new UnauthorizedException('Token inválido: no se puede decodificar el payload');
+      // ID Token: tiene email
+      if (decoded.email) {
+        return await this.userService.findOrCreateByEmail({
+          id: decoded.sub,
+          email: decoded.email,
+        });
+      }
+      
+      return await this.userService.findOrCreateByCognitoSub(
+        decoded.sub,
+        decoded.email, 
+      );
+    } catch (error) {
+      console.error('Error al buscar/crear usuario:', error);
+      throw new UnauthorizedException('Error al procesar información del usuario');
     }
   }
 
   private async getCognitoPublicKey(iss: string, kid: string): Promise<string> {
     const cacheKey = `${iss}-${kid}`;
-
     const cached = this.jwksCache.get(cacheKey);
+
     if (cached && Date.now() < cached.expiry) {
       return cached.key;
     }
@@ -151,7 +197,7 @@ export class JwtAuthGuard implements CanActivate {
       return pendingFetch;
     }
 
-    const fetchPromise = this.fetchCognitoPublicKey(iss, kid, cacheKey);
+    const fetchPromise = this.fetchAndCachePublicKey(iss, kid, cacheKey);
     this.pendingFetches.set(cacheKey, fetchPromise);
 
     try {
@@ -161,23 +207,46 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private async fetchCognitoPublicKey(iss: string, kid: string, cacheKey: string): Promise<string> {
+  private async fetchAndCachePublicKey(
+    iss: string,
+    kid: string,
+    cacheKey: string,
+  ): Promise<string> {
     const jwksUrl = `${iss}/.well-known/jwks.json`;
-    const response = await fetch(jwksUrl);
-
-    if (!response.ok) {
+    
+    let response: Response;
+    try {
+      response = await fetch(jwksUrl, {
+        signal: AbortSignal.timeout(5000), 
+      });
+    } catch (error) {
+      console.error('Error al obtener JWKS:', error);
       throw new UnauthorizedException('No se pudo obtener las claves públicas');
     }
 
+    if (!response.ok) {
+      throw new UnauthorizedException(
+        `Error al obtener JWKS: ${response.status} ${response.statusText}`
+      );
+    }
+
     const jwks: JWKSResponse = await response.json();
-    const key = jwks.keys.find((k: CognitoJWK) => k.kid === kid);
+    const key = jwks.keys.find((k) => k.kid === kid);
 
     if (!key) {
-      throw new UnauthorizedException('Clave pública no encontrada');
+      throw new UnauthorizedException(
+        `Clave pública no encontrada para kid: ${kid}`
+      );
     }
 
     const publicKey = this.jwkToPem(key);
+    this.cachePublicKey(cacheKey, publicKey);
 
+    return publicKey;
+  }
+
+  private cachePublicKey(cacheKey: string, publicKey: string): void {
+    // LRU simple: eliminar la entrada más antigua si se alcanza el límite
     if (this.jwksCache.size >= this.MAX_CACHE_SIZE) {
       const firstKey = this.jwksCache.keys().next().value;
       if (firstKey) {
@@ -189,23 +258,26 @@ export class JwtAuthGuard implements CanActivate {
       key: publicKey,
       expiry: Date.now() + this.CACHE_DURATION,
     });
-
-    return publicKey;
   }
 
   private jwkToPem(jwk: CognitoJWK): string {
-    const publicKeyObject = createPublicKey({
-      key: {
-        kty: jwk.kty,
-        n: jwk.n,
-        e: jwk.e,
-      },
-      format: 'jwk',
-    });
+    try {
+      const publicKeyObject = createPublicKey({
+        key: {
+          kty: jwk.kty,
+          n: jwk.n,
+          e: jwk.e,
+        },
+        format: 'jwk',
+      });
 
-    return publicKeyObject.export({
-      type: 'spki',
-      format: 'pem',
-    }) as string;
+      return publicKeyObject.export({
+        type: 'spki',
+        format: 'pem',
+      }) as string;
+    } catch (error) {
+      console.error('Error al convertir JWK a PEM:', error);
+      throw new UnauthorizedException('Error al procesar clave pública');
+    }
   }
 }

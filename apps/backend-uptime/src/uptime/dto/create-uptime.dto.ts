@@ -2,10 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDate, IsNumber, IsOptional, IsString, IsUrl, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateUptimeDto {
-    @ApiProperty({ format: 'uuid', example: '550e8400-e29b-41d4-a716-446655440000' })
-    @IsUUID()
-    userId: string;
-
     @ApiProperty({ example: 'Mi API Principal' })
     @IsString()
     name: string;

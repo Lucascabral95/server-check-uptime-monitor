@@ -6,3 +6,6 @@ export * from './user.interface';
 export * from './enums';
 
 export * from './pagination';
+export * from './get-stats-user.interface';
+export * from './notify-state.interface';
+export * from './toast.interface';

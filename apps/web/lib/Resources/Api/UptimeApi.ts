@@ -92,6 +92,25 @@ export async function deleteUptimeById(id: string) {
     }
 }
 
+// Obtener estadisticas de los enlaces de mis links 
+export async function getMyStatsUser() {
+    try {
+        const { data } = await axiosInstance.get("/uptime/stats/user");
+
+        console.log(data);
+
+        return data;
+    } catch (error) {
+       if (isAxiosError(error)) {
+                const status = error.response?.status ?? null;
+                const message = error.response?.data?.message ||
+                     error.message || "Error al obtener estadísticas de mis enlaces";
+                     throw { status, message };
+            }
+            throw error;
+    }
+}
+
 // Forzar flush del buffer de logs y obtener estadísticas internas del sistema
 export async function forceFlushUptime() {
         try {

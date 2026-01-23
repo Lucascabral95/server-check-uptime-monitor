@@ -6,9 +6,9 @@ import { MdOutlineSwapVert } from "react-icons/md";
 import { IoClose } from "react-icons/io5";
 import { Status, SortBy } from "@/infraestructure/interfaces";
 
-import "./FiltersMonitor.scss";
 import FilterMonitorInside from "./FilterMonitorInside";
 import SortMonitorInside from "./SortMonitorInside";
+import "./FiltersMonitor.scss";
 
 interface FiltersMonitorProps {
   onFiltersChange: (filters: {
@@ -167,6 +167,7 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
           )}
         </div>
       </div>
+      
     </div>
   );
 };

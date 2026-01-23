@@ -13,6 +13,7 @@ import { PaginationUptimeDto, PaginatedResponseDto, SortBy } from './dto/paginat
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
+import { GetStatsUserDto } from './dto';
 
 @Injectable()
 export class UptimeService {
@@ -23,9 +24,9 @@ export class UptimeService {
         @InjectQueue('uptime-monitor') private readonly monitorQueue: Queue,
     ) {}
 
-    async create(createUptimeDto: CreateUptimeDto) {
+    async create(createUptimeDto: CreateUptimeDto, userId: string) {
         try {
-            const { name, url, frequency, userId } = createUptimeDto;
+            const { name, url, frequency } = createUptimeDto;
 
             const userExists = await this.prisma.user.findUnique({
                 where: { id: userId },
@@ -335,4 +336,72 @@ export class UptimeService {
             this.logger.warn(`Monitor job not found for removal: ${monitorId}`);
         }
     }
+
+
+    /////  
+    async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
+    try {
+      const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const [
+        totalMonitors,
+        upCount,
+        downCount,
+        pendingCount,
+        monitorsDownLast24h,
+      ] = await Promise.all([
+        this.prisma.monitor.count({
+          where: { userId },
+        }),
+
+        this.prisma.monitor.count({
+          where: { userId, status: 'UP' },
+        }),
+
+        this.prisma.monitor.count({
+          where: { userId, status: 'DOWN' },
+        }),
+
+        this.prisma.monitor.count({
+          where: { userId, status: 'PENDING' },
+        }),
+
+        this.prisma.monitor.findMany({
+          where: {
+            userId,
+            status: 'DOWN',
+            lastCheck: {
+              gte: last24Hours,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            lastCheck: true,
+          },
+        }),
+      ]);
+
+      return {
+        totalMonitors,
+        up: upCount,
+        down: downCount,
+        pending: pendingCount,
+        downLast24hCount: monitorsDownLast24h.length,
+        downLast24h: monitorsDownLast24h,
+        hasDowntimeLast24h: monitorsDownLast24h.length > 0,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      throw handlePrismaError(error, 'Error getting monitor stats by user id');
+    }
+  }
 }

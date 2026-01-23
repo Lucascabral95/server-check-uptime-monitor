@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { UptimeService } from './uptime.service';
-import { CreateUptimeDto, UpdateUptimeDto, PaginationUptimeDto, GetUptimeDto, SortBy } from './dto';
+import { CreateUptimeDto, UpdateUptimeDto, PaginationUptimeDto, GetUptimeDto, SortBy, GetStatsUserDto } from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
@@ -24,8 +24,8 @@ export class UptimeController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Crear monitor de uptime' })
   @ApiResponse({ status: 201, type: GetUptimeDto })
-  create(@Body() createUptimeDto: CreateUptimeDto) {
-    return this.uptimeService.create(createUptimeDto);
+  create(@Body() createUptimeDto: CreateUptimeDto, @Request() req: RequestUserDto) {
+    return this.uptimeService.create(createUptimeDto, req.user.dbUserId);
   }
   
   @Get()
@@ -56,6 +56,14 @@ export class UptimeController {
             bufferUtilization: this.pingLogBufferService.getBufferUtilization(),
         };
     }
+
+    @Get('stats/user')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener estadísticas de mis links activos' })
+  getStatsUser(@Request() req: RequestUserDto): Promise<GetStatsUserDto> {
+    return this.uptimeService.getStatsByUserId(req.user.dbUserId);
+  }
 
     @Get('flush')
     @ApiOperation({ summary: 'Forzar flush del buffer de logs' })

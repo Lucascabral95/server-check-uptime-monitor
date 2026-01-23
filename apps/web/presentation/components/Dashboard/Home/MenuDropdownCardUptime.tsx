@@ -1,4 +1,3 @@
-import React from 'react'
 import { IoIosCreate, IoIosTrash } from 'react-icons/io'
 import { GetUptimeDto } from '@/infraestructure/interfaces';
 
