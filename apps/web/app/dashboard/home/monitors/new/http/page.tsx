@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { IoIosArrowBack } from 'react-icons/io';
 
 import { CreateUptimeDto, NotifyState, ToastInterface } from '@/infraestructure/interfaces';
 import { IconChevron, 
@@ -14,10 +15,13 @@ import useUptime from '@/presentation/hooks/useUptime.hook';
 import { createUptimeSchema } from '@/infraestructure/models';
 import Toast from '@/presentation/components/shared/Toasts/Toast';
 import './MonitorNewHttp.scss';
+import { useRouter } from 'next/navigation';
 
 const TIMEOUT_TOAST = 3000;
 
 const MonitorsNewHttp = () => {
+  const router = useRouter();
+
   const { 
     url, 
     setUrl, 
@@ -93,8 +97,23 @@ const MonitorsNewHttp = () => {
     setNotify(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleBackToMonitors = () => {
+    router.push('/dashboard/home');
+  };
+
   return (
     <div className="monitor-setup-wrapper">
+
+<div className="button-back-back">
+        <button className="b-back" onClick={handleBackToMonitors}>
+          <IoIosArrowBack className='icon' />
+          Monitores
+        </button>
+      </div>
+    <div className="title-update-post">
+      <h2> Agregar nuevo monitor</h2>
+    </div>
+
       <form className="monitor-card" onSubmit={handleSubmit}>
         
         <div className="form-section">

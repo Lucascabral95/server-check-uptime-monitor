@@ -57,7 +57,7 @@ export class UptimeController {
         };
     }
 
-    @Get('stats/user')
+  @Get('stats/user')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Obtener estadísticas de mis links activos' })
