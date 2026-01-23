@@ -64,6 +64,49 @@ $accent-blue-dark: #2c3650;
         }
     }
   }
+
+  .button-back-back {
+    display: flex;
+    align-items: center;
+
+     .b-back {
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  border-radius: 6px;
+  background: #1C2434;
+  border: none;
+  outline: none;
+  color: $text-primary;
+  font-size: 14px;
+  font-weight: 600;
+
+  .icon {
+    color: $text-primary;
+    margin: 0 8px 0 0;
+  }
+
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+
+  &:hover {
+    opacity: 0.8;
+    background-color: #1A2231;
+  }
+}
+  }
+
+  .title-update-post {
+    display: flex;
+    align-items: center;
+    margin: 1rem 0;
+
+     h2 {
+      color: $text-primary;
+      font-size: 24px;
+      font-weight: 600;
+     } 
+  }
 }
 
 .divider {

@@ -25,7 +25,6 @@ export interface CreateUptimeDto {
 // Update monitor DTO
 export interface UpdateUptimeDto {
   name?: string;
-  url?: string;
   frequency?: number;
   isActive?: boolean;
 }

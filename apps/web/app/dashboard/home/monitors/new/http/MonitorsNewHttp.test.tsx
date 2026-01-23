@@ -7,6 +7,18 @@ import MonitorsNewHttp from './page';
 import useUptime from '../../../../../../presentation/hooks/useUptime.hook';
 import useNewMonitor from '../../../../../../presentation/hooks/useNewMonitor.hook';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}));
+
+vi.mock('@/infraestructure/models', () => ({
+  createUptimeSchema: {
+    safeParse: (data: any) => ({ success: true, data }),
+  },
+}));
+
 vi.mock('../../../../../../presentation/hooks/useUptime.hook');
 vi.mock('../../../../../../presentation/hooks/useNewMonitor.hook');
 
@@ -41,7 +53,9 @@ describe('MonitorsNewHttp', () => {
 
     render(<MonitorsNewHttp />);
 
-    fireEvent.submit(document.querySelector('form')!);
+    fireEvent.click(
+      screen.getByRole('button', { name: /agregar monitor/i })
+    );
 
     expect(mutateMock).toHaveBeenCalledWith(
       {
@@ -55,7 +69,7 @@ describe('MonitorsNewHttp', () => {
 
   it('should show success toast on successful creation', async () => {
     const mutateMock = vi.fn((_data, options) => {
-      options.onSuccess();
+      options?.onSuccess?.();
     });
 
     vi.mocked(useUptime).mockReturnValue({
@@ -64,7 +78,9 @@ describe('MonitorsNewHttp', () => {
 
     render(<MonitorsNewHttp />);
 
-    fireEvent.submit(document.querySelector('form')!);
+    fireEvent.click(
+      screen.getByRole('button', { name: /agregar monitor/i })
+    );
 
     await waitFor(() => {
       expect(
@@ -75,7 +91,7 @@ describe('MonitorsNewHttp', () => {
 
   it('should call cleanup after successful creation', async () => {
     const mutateMock = vi.fn((_data, options) => {
-      options.onSuccess();
+      options?.onSuccess?.();
     });
 
     vi.mocked(useUptime).mockReturnValue({
@@ -84,7 +100,9 @@ describe('MonitorsNewHttp', () => {
 
     render(<MonitorsNewHttp />);
 
-    fireEvent.submit(document.querySelector('form')!);
+    fireEvent.click(
+      screen.getByRole('button', { name: /agregar monitor/i })
+    );
 
     await waitFor(() => {
       expect(cleanupMock).toHaveBeenCalledTimes(1);

@@ -337,7 +337,6 @@ export class UptimeService {
         }
     }
 
-
     /////  
     async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
     try {
