@@ -8,7 +8,7 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { HttpPoolService } from './services/http-pool.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
 import { PaginationUptimeDto } from './dto/pagination-uptime.dto';
-import { Status } from '@prisma/client';
+import { Role, Status } from '@prisma/client';
 import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 
 describe('UptimeController', () => {
@@ -256,7 +256,14 @@ describe('UptimeController', () => {
       mockPrismaService.monitor.create.mockResolvedValue(createdMonitor);
       mockQueue.add.mockResolvedValue({ id: 'job-1' });
 
-      const result = await controller.create(createDto, { user: { dbUserId: 'user-123', role: Role.USER } });
+      const mockRequest = {
+  user: {
+    dbUserId: 'user-123',
+    role: Role.USER,
+  },
+} as any;
+
+      const result = await controller.create(createDto, mockRequest);
 
       expect(result).toEqual(createdMonitor);
       expect(mockPrismaService.monitor.create).toHaveBeenCalledWith({
