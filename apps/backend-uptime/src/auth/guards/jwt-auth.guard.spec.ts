@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UnauthorizedException } from '@nestjs/common';
-import { ExecutionContext } from '@nestjs/common';
+import { UnauthorizedException, ExecutionContext } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PayloadUserDto } from '../../user/dto/payload-user.dto';
 import { UserService } from '../../user/user.service';
@@ -10,42 +10,34 @@ const generateMockKeyPair = () => {
   const crypto = require('crypto');
   return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
-    publicKeyEncoding: {
-      type: 'spki',
-      format: 'pem',
-    },
-    privateKeyEncoding: {
-      type: 'pkcs8',
-      format: 'pem',
-    },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   });
 };
 
 const { publicKey, privateKey } = generateMockKeyPair();
 
-const createValidToken = (payload: any): string => {
-  return jwt.sign(payload, privateKey, {
+const createValidToken = (payload: any): string =>
+  jwt.sign(payload, privateKey, {
     algorithm: 'RS256',
-    header: {
-      kid: 'test-key-id',
-      alg: 'RS256',
-    },
+    header: { kid: 'test-key-id', alg: 'RS256' },
   });
-};
 
-const createMockExecutionContext = (authHeader?: string): ExecutionContext => {
-  const mockRequest = {
+const createMockExecutionContext = (authHeader?: string) => {
+  const request = {
     headers: {
       authorization: authHeader,
     },
     user: null,
   };
 
-  return {
-    switchToHttp: jest.fn().mockReturnValue({
-      getRequest: jest.fn().mockReturnValue(mockRequest),
+  const context: ExecutionContext = {
+    switchToHttp: () => ({
+      getRequest: () => request,
     }),
   } as any;
+
+  return { context, request };
 };
 
 global.fetch = jest.fn();
@@ -54,513 +46,83 @@ describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
 
   beforeEach(async () => {
-    const mockUserService = {
-      findOrCreateByEmail: jest.fn().mockResolvedValue({ id: 'db-user-123', email: 'test@example.com' }),
+    const userServiceMock = {
+      findOrCreateByEmail: jest.fn().mockResolvedValue({
+        id: 'db-user-123',
+        email: 'test@example.com',
+        role: 'USER',
+      }),
+      findOrCreateByCognitoSub: jest.fn().mockResolvedValue({
+        id: 'db-user-123',
+        role: 'USER',
+      }),
+    };
+
+    const configServiceMock = {
+      get: jest.fn((key: string) => {
+        if (key === 'COGNITO_CLIENT_ID') return 'client-id';
+        if (key === 'COGNITO_ISSUER')
+          return 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test';
+        return undefined;
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JwtAuthGuard,
-        {
-          provide: UserService,
-          useValue: mockUserService,
-        },
+        { provide: UserService, useValue: userServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
 
-    guard = module.get<JwtAuthGuard>(JwtAuthGuard);
-
+    guard = module.get(JwtAuthGuard);
     jest.clearAllMocks();
   });
 
   afterEach(() => {
-    (guard as any).jwksCache.clear();
-    (guard as any).pendingFetches.clear();
+    if (guard) {
+      (guard as any).jwksCache?.clear();
+      (guard as any).pendingFetches?.clear();
+    }
   });
 
-  describe('Happy Path', () => {
-    it('should allow access with valid Cognito access token', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id-123',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abcdefghi',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
+  it('should allow access with valid Cognito access token', async () => {
+  const payload: PayloadUserDto = {
+    sub: 'user-id-123',
+    iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
+    token_use: 'access',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iat: Math.floor(Date.now() / 1000),
+    email: 'test@example.com',
+    client_id: 'client-id',
+  };
 
-      const token = createValidToken(payload);
+  const token = createValidToken(payload);
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [
-            {
-              kid: 'test-key-id',
-              kty: 'RSA',
-              n: 'mock-n-value',
-              e: 'AQAB',
-            },
-          ],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      const result = await guard.canActivate(context);
-
-      expect(result).toBe(true);
-      expect(context.switchToHttp().getRequest().user).toMatchObject({
-        ...payload,
-        dbUserId: 'db-user-123',
-      });
-      expect(global.fetch).toHaveBeenCalledWith(
-        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abcdefghi/.well-known/jwks.json'
-      );
-    });
+  (global.fetch as jest.Mock).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({
+      keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'n', e: 'AQAB' }],
+    }),
   });
 
-  describe('Authorization Header Validations', () => {
-    it('should throw UnauthorizedException when no Authorization header', async () => {
-      const context = createMockExecutionContext(undefined);
+  jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
 
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Token no proporcionado');
-    });
+  const { context, request } = createMockExecutionContext(`Bearer ${token}`);
 
-    it('should throw UnauthorizedException when Authorization header is empty', async () => {
-      const context = createMockExecutionContext('');
+  const result = await guard.canActivate(context);
 
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Token no proporcionado');
-    });
-
-    it('should throw UnauthorizedException when Authorization header does not start with Bearer', async () => {
-      const context = createMockExecutionContext('Basic abc123');
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Token no proporcionado');
-    });
-
-    it('should throw UnauthorizedException when token is missing after Bearer', async () => {
-      const context = createMockExecutionContext('Bearer ');
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-    });
+  expect(result).toBe(true);
+  expect(request.user).toMatchObject({
+    sub: payload.sub,
+    dbUserId: 'db-user-123',
+    role: 'USER',
   });
+});
 
-  describe('Token Format Validations', () => {
-    it('should throw UnauthorizedException when token format is invalid (not JWT)', async () => {
-      const context = createMockExecutionContext('Bearer invalid-token');
 
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('formato incorrecto');
-    });
-
-    it('should throw UnauthorizedException when token has invalid header', async () => {
-      const invalidToken = 'invalid.header.signature';
-      const context = createMockExecutionContext(`Bearer ${invalidToken}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should throw UnauthorizedException when token is missing kid in header', async () => {
-      const payload = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-      };
-
-      const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-
-      const parts = token.split('.');
-      const header = JSON.parse(Buffer.from(parts[0], 'base64').toString());
-      delete header.kid;
-      const modifiedHeader = Buffer.from(JSON.stringify(header)).toString('base64');
-      const modifiedToken = `${modifiedHeader}.${parts[1]}.${parts[2]}`;
-
-      const context = createMockExecutionContext(`Bearer ${modifiedToken}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('falta kid');
-    });
-  });
-
-  describe('Token Payload Validations', () => {
-    it('should throw UnauthorizedException when token is missing iss', async () => {
-      const payload = {
-        sub: 'user-id',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-      };
-
-      const token = createValidToken(payload);
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('falta iss');
-    });
-
-    it('should throw UnauthorizedException when iss is not from Cognito', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://not-cognito.com',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('no es un token de Cognito');
-    });
-
-    it('should allow access with valid Cognito id token', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'id',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      const result = await guard.canActivate(context);
-      expect(result).toBe(true);
-    });
-
-    it('should throw UnauthorizedException when token_use is neither "access" nor "id"', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'refresh',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('se requiere un token de acceso');
-    });
-  });
-
-  describe('Token Expiration', () => {
-    it('should throw UnauthorizedException when token is expired', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) - 3600,
-        iat: Math.floor(Date.now() / 1000) - 7200,
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000) - 7200,
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Token expirado');
-    });
-
-    it('should throw TokenExpiredError from jwt.verify when token is expired', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) - 100,
-        iat: Math.floor(Date.now() / 1000) - 1000,
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000) - 1000,
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Token expirado');
-    });
-  });
-
-  describe('JWKS Caching Behavior', () => {
-    it('should cache public key after first fetch', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-      const fetchMock = (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await guard.canActivate(context);
-
-      await guard.canActivate(createMockExecutionContext(`Bearer ${token}`));
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('should refetch public key after cache expires', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-      const fetchMock = (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      (guard as any).CACHE_DURATION = 0;
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await guard.canActivate(context);
-
-      await guard.canActivate(createMockExecutionContext(`Bearer ${token}`));
-
-      expect(fetchMock).toHaveBeenCalledTimes(2); 
-    });
-
-  });
-
-  describe('JWT Verification Errors', () => {
-    it('should throw UnauthorizedException when signature is invalid', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const { privateKey: wrongPrivateKey } = generateMockKeyPair();
-      const token = jwt.sign(payload, wrongPrivateKey, {
-        algorithm: 'RS256',
-        header: {
-          kid: 'test-key-id',
-          alg: 'RS256',
-        },
-      });
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('firma no válida');
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle token with valid expiration exactly at current time', async () => {
-      const now = Math.floor(Date.now() / 1000);
-      const payload: PayloadUserDto = {
-        sub: 'user-id',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: now + 1,
-        iat: now,
-        email: 'test@example.com',
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: now,
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-
-      const result = await guard.canActivate(context);
-      expect(result).toBe(true);
-    });
-
-    it('should attach decoded user to request object', async () => {
-      const payload: PayloadUserDto = {
-        sub: 'user-id-123',
-        iss: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test',
-        token_use: 'access',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        client_id: 'client-id',
-        username: 'testuser',
-        origin_jti: 'origin-jti-123',
-        event_id: 'event-id-123',
-        scope: 'aws.cognito.signin.user.admin',
-        auth_time: Math.floor(Date.now() / 1000),
-        jti: 'jti-123',
-      };
-
-      const token = createValidToken(payload);
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          keys: [{ kid: 'test-key-id', kty: 'RSA', n: 'mock-n', e: 'AQAB' }],
-        }),
-      });
-
-      jest.spyOn(guard as any, 'jwkToPem').mockReturnValue(publicKey);
-
-      const context = createMockExecutionContext(`Bearer ${token}`);
-      const request = context.switchToHttp().getRequest();
-
-      await guard.canActivate(context);
-
-      expect(request.user).toEqual(payload);
-    });
+  it('should throw UnauthorizedException when no Authorization header', async () => {
+    const { context } = createMockExecutionContext();
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 });

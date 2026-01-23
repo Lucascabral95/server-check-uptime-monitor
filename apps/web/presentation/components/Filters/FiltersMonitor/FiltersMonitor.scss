@@ -1,0 +1,289 @@
+@use "sass:color";
+
+$bg-main: #1c2434;
+$bg-soft: #131a25;
+$bg-hover: #2d3748;
+$border: #2d3748;
+$accent: #3bd671;
+$accent-soft: rgba(59, 214, 113, 0.12);
+$text-main: #ffffff;
+$text-muted: #94a3b8;
+$radius: 12px;
+
+.filter-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+
+  .count-monitor {
+    height: 44px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #1f293b, #131a25);
+    border-radius: $radius;
+    border: 1px solid $border;
+
+    span {
+      color: $text-main;
+      font-size: 14px;
+      font-weight: 600;
+    }
+  }
+}
+
+.search-filter-order {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  flex: 1;
+}
+
+.search {
+  .search-input-wrapper {
+    .input-search {
+      height: 44px;
+      padding: 0 46px 0 16px;
+      border-radius: $radius;
+      border: 1px solid $border;
+      background-color: $bg-soft;
+      color: $text-main;
+      font-size: 14px;
+
+      &::placeholder {
+        color: $text-muted;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: $accent;
+        box-shadow: 0 0 0 3px rgba(59, 214, 113, 0.18);
+      }
+    }
+  }
+}
+
+.cont-filter-of-monitors,
+.cont-sort-by-status {
+  position: relative;
+}
+
+.filter-of-monitors,
+.sort-by-status {
+  height: 44px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(180deg, #1f293b, #131a25);
+  border-radius: $radius;
+  border: 1px solid $border;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .icon-filter {
+    font-size: 18px;
+    color: $text-main;
+  }
+
+  .text-filter {
+    font-size: 14px;
+    font-weight: 600;
+    color: $text-main;
+  }
+
+  &:hover {
+    background: linear-gradient(180deg, #273244, #1b2230);
+    border-color: color.adjust($border, $lightness: 10%);
+  }
+
+  &.has-filters,
+  &.has-sort {
+    border-color: $accent;
+    box-shadow: 0 0 0 2px rgba(59, 214, 113, 0.18);
+  }
+}
+
+.filter-monitor-inside,
+.sort-monitor-inside {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 280px;
+  z-index: 200;
+}
+
+.filter-monitor-inside .container,
+.sort-monitor-inside .container {
+  background-color: $bg-main;
+  border-radius: 16px;
+  border: 1px solid $border;
+  padding: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.title-close {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+
+  .text-filter span {
+    color: $text-main;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .button {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background-color: $bg-soft;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    .icon {
+      font-size: 16px;
+      color: $text-main;
+    }
+
+    &:hover {
+      background-color: $bg-hover;
+    }
+  }
+}
+
+.status-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.status-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background-color: $bg-soft;
+  cursor: pointer;
+  border: 1px solid transparent;
+
+  span {
+    color: $text-main;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  &:hover {
+    background-color: $bg-hover;
+  }
+
+  &.active {
+    background-color: $accent-soft;
+    border-color: $accent;
+  }
+}
+
+.sort-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.sort-group-title {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+}
+
+.sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background-color: $bg-soft;
+  cursor: pointer;
+  border: 1px solid transparent;
+
+  span {
+    color: $text-main;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  &:hover {
+    background-color: $bg-hover;
+  }
+
+  &.active {
+    background-color: $accent-soft;
+    border-color: $accent;
+  }
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+
+  button {
+    flex: 1;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-cancel {
+    background-color: $bg-soft;
+    color: $text-main;
+
+    &:hover {
+      background-color: $bg-hover;
+    }
+  }
+
+  .btn-apply {
+    background-color: $accent;
+    color: #0f172a;
+
+    &:hover {
+      background-color: #2bc060;
+    }
+  }
+}
+
+@media (max-width: 1200px) {
+  .filter-container {
+    .cont-sort-by-status {
+      display: none;
+    }
+  }
+}
+
+@media (max-width: 960px) {
+  .filter-container {
+    .cont-filter-of-monitors {
+      display: none;
+    }
+  }
+}
+

@@ -9,10 +9,11 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { CreateUptimeDto } from './dto/create-uptime.dto';
 import { UpdateUptimeDto } from './dto/update-uptime.dto';
-import { PaginationUptimeDto, PaginatedResponseDto } from './dto/pagination-uptime.dto';
+import { PaginationUptimeDto, PaginatedResponseDto, SortBy } from './dto/pagination-uptime.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
+import { GetStatsUserDto } from './dto';
 
 @Injectable()
 export class UptimeService {
@@ -23,9 +24,9 @@ export class UptimeService {
         @InjectQueue('uptime-monitor') private readonly monitorQueue: Queue,
     ) {}
 
-    async create(createUptimeDto: CreateUptimeDto) {
+    async create(createUptimeDto: CreateUptimeDto, userId: string) {
         try {
-            const { name, url, frequency, userId } = createUptimeDto;
+            const { name, url, frequency } = createUptimeDto;
 
             const userExists = await this.prisma.user.findUnique({
                 where: { id: userId },
@@ -72,7 +73,7 @@ export class UptimeService {
 
     async findAll(paginationDto: PaginationUptimeDto = {}): Promise<PaginatedResponseDto<any>> {
         try {
-            const { page = 1, limit = 10, userId, status } = paginationDto;
+            const { page = 1, limit = 10, userId, status, sortBy = SortBy.RECENT, search } = paginationDto;
             const skip = (page - 1) * limit;
 
             const where: any = {};
@@ -85,15 +86,51 @@ export class UptimeService {
                 where.status = status;
             }
 
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { url: { contains: search, mode: 'insensitive' } },
+                ];
+            }
+
+            const orderByMap: Record<SortBy, any> = {
+                [SortBy.RECENT]: { createdAt: 'desc' },
+                [SortBy.OLDEST]: { createdAt: 'asc' },
+                [SortBy.NAME_ASC]: { name: 'asc' },
+                [SortBy.NAME_DESC]: { name: 'desc' },
+                [SortBy.STATUS_DOWN]: { createdAt: 'desc' }, 
+                [SortBy.STATUS_UP]: { createdAt: 'desc' }, 
+            };
+
             const [data, totalItems] = await Promise.all([
                 this.prisma.monitor.findMany({
                     where,
                     skip,
                     take: limit,
-                    orderBy: { createdAt: 'desc' },
+                    orderBy: orderByMap[sortBy],
                 }),
                 this.prisma.monitor.count({ where }),
             ]);
+
+            if (sortBy === SortBy.STATUS_DOWN || sortBy === SortBy.STATUS_UP) {
+                const statusPriority: Record<string, number> = {};
+
+                if (sortBy === SortBy.STATUS_DOWN) {
+                    statusPriority['DOWN'] = 0;
+                    statusPriority['UP'] = 1;
+                    statusPriority['PENDING'] = 2;
+                } else {
+                    statusPriority['UP'] = 0;
+                    statusPriority['DOWN'] = 1;
+                    statusPriority['PENDING'] = 2;
+                }
+
+                (data as any[]).sort((a, b) => {
+                    const priorityA = statusPriority[a.status] ?? 2;
+                    const priorityB = statusPriority[b.status] ?? 2;
+                    return priorityA - priorityB;
+                });
+            }
 
             const totalPages = Math.ceil(totalItems / limit);
 
@@ -299,4 +336,72 @@ export class UptimeService {
             this.logger.warn(`Monitor job not found for removal: ${monitorId}`);
         }
     }
+
+
+    /////  
+    async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
+    try {
+      const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const [
+        totalMonitors,
+        upCount,
+        downCount,
+        pendingCount,
+        monitorsDownLast24h,
+      ] = await Promise.all([
+        this.prisma.monitor.count({
+          where: { userId },
+        }),
+
+        this.prisma.monitor.count({
+          where: { userId, status: 'UP' },
+        }),
+
+        this.prisma.monitor.count({
+          where: { userId, status: 'DOWN' },
+        }),
+
+        this.prisma.monitor.count({
+          where: { userId, status: 'PENDING' },
+        }),
+
+        this.prisma.monitor.findMany({
+          where: {
+            userId,
+            status: 'DOWN',
+            lastCheck: {
+              gte: last24Hours,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            lastCheck: true,
+          },
+        }),
+      ]);
+
+      return {
+        totalMonitors,
+        up: upCount,
+        down: downCount,
+        pending: pendingCount,
+        downLast24hCount: monitorsDownLast24h.length,
+        downLast24h: monitorsDownLast24h,
+        hasDowntimeLast24h: monitorsDownLast24h.length > 0,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      throw handlePrismaError(error, 'Error getting monitor stats by user id');
+    }
+  }
 }

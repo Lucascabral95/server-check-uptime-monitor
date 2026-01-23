@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 import { LoginException, LoginResponseUser } from '@/infraestructure/interfaces';
 
-interface AuthTokens {
+export interface AuthTokens {
   accessToken: string;
   idToken: string;
 }

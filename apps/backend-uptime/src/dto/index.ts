@@ -3,6 +3,7 @@ export * from '../uptime/dto/create-uptime.dto';
 export * from '../uptime/dto/get-uptime.dto';
 export * from '../uptime/dto/update-uptime.dto';
 export * from '../uptime/dto/pagination-uptime.dto';
+export * from '../uptime/dto/get-stats-user.dto';
 
 // PingLog DTOs
 export * from '../ping-log/dto/create-ping-log.dto';

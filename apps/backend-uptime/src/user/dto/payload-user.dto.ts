@@ -1,4 +1,5 @@
 export class PayloadUserDto {
+    userId?: string;
     sub: string;
     email_verified?: boolean;
     iss: string;
