@@ -9,11 +9,21 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { CreateUptimeDto } from './dto/create-uptime.dto';
 import { UpdateUptimeDto } from './dto/update-uptime.dto';
-import { PaginationUptimeDto, PaginatedResponseDto, SortBy } from './dto/pagination-uptime.dto';
+import { PaginationUptimeDto, PaginatedResponseDto, SortBy, PaginationIncidentsDto, IncidentSortBy } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
-import { GetStatsUserDto } from './dto';
+import {
+  GetStatsUserDto,
+   GetStatsLogsByUptimeIdDto,
+   HealthStatsDto,
+   GetUptimeDto,
+    GetIncidentsDto,
+     IncidentDto,
+      GetIncidentsByUserIdDto,
+       IncidentWithMonitorDto,
+        MonitorIncidentSummaryDto,
+       } from './dto';
 
 @Injectable()
 export class UptimeService {
@@ -401,6 +411,539 @@ export class UptimeService {
       }
 
       throw handlePrismaError(error, 'Error getting monitor stats by user id');
+    }
+  }
+
+  /// Obtener estadísticas de logs avanzadas de un monitor por uptimeId
+  async findStatsLogsByUptimeId(
+    uptimeId: string,
+    userId: string,
+  ): Promise<GetStatsLogsByUptimeIdDto> {
+    await this.verifyOwnerMonitorByUserId(uptimeId, userId);
+
+    try {
+      const monitor = await this.prisma.monitor.findUnique({
+        where: { id: uptimeId },
+        include: {
+          logs: {
+            orderBy: { timestamp: 'desc' },
+            take: 100,
+          },
+        },
+      });
+
+      if (!monitor) {
+        throw new NotFoundException(`Monitor with id '${uptimeId}' not found`);
+      }
+
+      const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const threeHundredSixtyFiveDaysMs = 365 * 24 * 60 * 60 * 1000;
+
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - twentyFourHoursMs);
+      const sevenDaysAgo = new Date(now.getTime() - sevenDaysMs);
+      const thirtyDaysAgo = new Date(now.getTime() - thirtyDaysMs);
+      const threeHundredSixtyFiveDaysAgo = new Date(now.getTime() - threeHundredSixtyFiveDaysMs);
+
+      const [stats24Hours, stats7Days, stats30Days, stats365Days] = await Promise.all([
+        this.calculateHealthStats(uptimeId, twentyFourHoursAgo, now),
+        this.calculateHealthStats(uptimeId, sevenDaysAgo, now),
+        this.calculateHealthStats(uptimeId, thirtyDaysAgo, now),
+        this.calculateHealthStats(uptimeId, threeHundredSixtyFiveDaysAgo, now),
+      ]);
+
+      return {
+        monitor: monitor as GetUptimeDto,
+        stats: {
+          last24Hours: stats24Hours,
+          last7Days: stats7Days,
+          last30Days: stats30Days,
+          last365Days: stats365Days,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(
+        error,
+        'Error getting stats logs by uptime id',
+      );
+    }
+  }
+
+  private async calculateHealthStats(
+    monitorId: string,
+    sinceDate: Date,
+    toDate: Date = new Date(),
+  ): Promise<HealthStatsDto> {
+    try {
+      const groupedLogs = await this.prisma.pingLog.groupBy({
+        by: ['success'],
+        where: {
+          monitorId,
+          timestamp: {
+            gte: sinceDate,
+            lte: toDate,
+          },
+        },
+        _count: true,
+      });
+
+      const successEntry = groupedLogs.find((entry) => entry.success === true);
+      const failureEntry = groupedLogs.find((entry) => entry.success === false);
+
+      const successCount = successEntry?._count ?? 0;
+      const failureCount = failureEntry?._count ?? 0;
+      const totalCount = successCount + failureCount;
+
+      const healthPercentage =
+        totalCount > 0 ? (successCount / totalCount) * 100 : 0;
+
+      const downtimeMs = await this.calculateDowntime(monitorId, sinceDate, toDate);
+      const periodMs = toDate.getTime() - sinceDate.getTime();
+      const uptimeMs = periodMs - downtimeMs;
+
+      return {
+        healthPercentage: Math.round(healthPercentage * 100) / 100,
+        incidentCount: failureCount,
+        totalChecks: totalCount,
+        downtimeMs,
+        downtimeFormatted: this.formatDuration(downtimeMs),
+        uptimeMs,
+        uptimeFormatted: this.formatDuration(uptimeMs),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error calculating health stats for monitor ${monitorId}: ${error.message}`,
+      );
+      return {
+        healthPercentage: 0,
+        incidentCount: 0,
+        totalChecks: 0,
+        downtimeMs: 0,
+        downtimeFormatted: '0s',
+        uptimeMs: 0,
+        uptimeFormatted: '0s',
+      };
+    }
+  }
+
+  private async calculateDowntime(
+    monitorId: string,
+    sinceDate: Date,
+    toDate: Date = new Date(),
+  ): Promise<number> {
+    try {
+      const logs = await this.prisma.pingLog.findMany({
+        where: {
+          monitorId,
+          timestamp: {
+            gte: sinceDate,
+            lte: toDate,
+          },
+        },
+        orderBy: { timestamp: 'asc' },
+        select: {
+          timestamp: true,
+          success: true,
+        },
+      });
+
+      if (logs.length === 0) {
+        return 0;
+      }
+
+      let downtimeMs = 0;
+      let inDowntime = false;
+      let downtimeStart: Date | null = null;
+
+      for (const log of logs) {
+        if (!log.success && !inDowntime) {
+          inDowntime = true;
+          downtimeStart = log.timestamp;
+        } else if (log.success && inDowntime && downtimeStart) {
+          downtimeMs += log.timestamp.getTime() - downtimeStart.getTime();
+          inDowntime = false;
+          downtimeStart = null;
+        }
+      }
+
+      if (inDowntime && downtimeStart) {
+        downtimeMs += toDate.getTime() - downtimeStart.getTime();
+      }
+
+      return downtimeMs;
+    } catch (error) {
+      this.logger.error(
+        `Error calculating downtime for monitor ${monitorId}: ${error.message}`,
+      );
+      return 0;
+    }
+  }
+
+  private formatDuration(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const days = Math.floor(totalSeconds / (24 * 60 * 60));
+    const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+
+    return parts.join(' ');
+  }
+
+  // Obtiene la lista de incidentes (períodos de caída) de un monitor
+  // Agrupa logs fallidos consecutivos en incidentes individuales
+  async getIncidents(monitorId: string, userId: string): Promise<GetIncidentsDto> {
+    await this.verifyOwnerMonitorByUserId(monitorId, userId);
+
+    try {
+      const logs = await this.prisma.pingLog.findMany({
+        where: {
+          monitorId,
+        },
+        orderBy: {
+          timestamp: 'asc',
+        },
+        select: {
+          id: true,
+          timestamp: true,
+          success: true,
+          error: true,
+          statusCode: true,
+        },
+      });
+
+      if (logs.length === 0) {
+        return {
+          monitorId,
+          incidents: [],
+          totalIncidents: 0,
+          totalDowntime: '0s',
+          totalDowntimeMs: 0,
+          ongoingIncidents: 0,
+        };
+      }
+
+      const monitor = await this.prisma.monitor.findUnique({
+        where: { id: monitorId },
+        select: { status: true },
+      });
+
+      const isCurrentlyDown = monitor?.status === 'DOWN';
+
+      const incidents: IncidentDto[] = [];
+      let currentIncident: Partial<IncidentDto> | null = null;
+      let totalDowntimeMs = 0;
+
+      for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+
+        if (!log.success) {
+          if (!currentIncident) {
+            currentIncident = {
+              id: `incident-${log.timestamp.getTime()}-${monitorId}`,
+              monitorId,
+              startTime: log.timestamp,
+              endTime: null,
+              durationMs: 0,
+              duration: '',
+              status: 'ONGOING',
+              affectedChecks: 1,
+              firstError: log.error || `HTTP ${log.statusCode}`,
+              lastError: log.error || `HTTP ${log.statusCode}`,
+            };
+          } else {
+            currentIncident.affectedChecks!++;
+            currentIncident.lastError = log.error || `HTTP ${log.statusCode}`;
+          }
+        } else {
+          if (currentIncident) {
+            const endTime = log.timestamp;
+            const durationMs = endTime.getTime() - currentIncident.startTime!.getTime();
+
+            incidents.push({
+              id: currentIncident.id!,
+              monitorId: currentIncident.monitorId!,
+              startTime: currentIncident.startTime!,
+              endTime,
+              durationMs,
+              duration: this.formatDuration(durationMs),
+              status: 'RESOLVED',
+              affectedChecks: currentIncident.affectedChecks!,
+              firstError: currentIncident.firstError,
+              lastError: currentIncident.lastError,
+            });
+
+            totalDowntimeMs += durationMs;
+            currentIncident = null;
+          }
+        }
+      }
+
+      if (currentIncident) {
+        const endTime = isCurrentlyDown ? null : new Date();
+        const durationMs = endTime
+          ? endTime.getTime() - currentIncident.startTime!.getTime()
+          : Date.now() - currentIncident.startTime!.getTime();
+
+        incidents.push({
+          id: currentIncident.id!,
+          monitorId: currentIncident.monitorId!,
+          startTime: currentIncident.startTime!,
+          endTime,
+          durationMs,
+          duration: this.formatDuration(durationMs),
+          status: isCurrentlyDown ? 'ONGOING' : 'RESOLVED',
+          affectedChecks: currentIncident.affectedChecks!,
+          firstError: currentIncident.firstError,
+          lastError: currentIncident.lastError,
+        });
+
+        totalDowntimeMs += durationMs;
+      }
+
+      incidents.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+
+      const ongoingCount = incidents.filter((i) => i.status === 'ONGOING').length;
+
+      return {
+        monitorId,
+        incidents,
+        totalIncidents: incidents.length,
+        totalDowntime: this.formatDuration(totalDowntimeMs),
+        totalDowntimeMs,
+        ongoingIncidents: ongoingCount,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error getting incidents');
+    }
+  }
+
+  // Obtiene todos los incidentes de todos los monitores del usuario
+  // Retorna incidentes agrupados con información del monitor
+  async getIncidentsByUserId(userId: string, paginationDto?: PaginationIncidentsDto): Promise<GetIncidentsByUserIdDto> {
+    try {
+      const { search, sortBy = IncidentSortBy.RECENT } = paginationDto || {};
+
+      // Build the where clause for search
+      const monitorWhere: any = { userId };
+
+      if (search) {
+        monitorWhere.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { url: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const monitors = await this.prisma.monitor.findMany({
+        where: monitorWhere,
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          status: true,
+        },
+      });
+
+      if (monitors.length === 0) {
+        return {
+          userId,
+          incidents: [],
+          byMonitor: [],
+          totalIncidents: 0,
+          totalDowntime: '0s',
+          totalDowntimeMs: 0,
+          ongoingIncidents: 0,
+          totalMonitors: 0,
+          monitorsDown: 0,
+        };
+      }
+
+      const allIncidents: IncidentWithMonitorDto[] = [];
+      const byMonitor: MonitorIncidentSummaryDto[] = [];
+      let totalDowntimeMs = 0;
+      let monitorsDown = 0;
+
+      for (const monitor of monitors) {
+        const logs = await this.prisma.pingLog.findMany({
+          where: { monitorId: monitor.id },
+          orderBy: { timestamp: 'asc' },
+          select: {
+            id: true,
+            timestamp: true,
+            success: true,
+            error: true,
+            statusCode: true,
+          },
+        });
+
+        const isCurrentlyDown = monitor.status === 'DOWN';
+        if (isCurrentlyDown) monitorsDown++;
+
+        const monitorIncidents: IncidentWithMonitorDto[] = [];
+        let currentIncident: Partial<IncidentWithMonitorDto> | null = null;
+        let monitorDowntimeMs = 0;
+
+        for (const log of logs) {
+          if (!log.success) {
+            if (!currentIncident) {
+              currentIncident = {
+                id: `incident-${log.timestamp.getTime()}-${monitor.id}`,
+                monitorId: monitor.id,
+                monitorName: monitor.name,
+                monitorUrl: monitor.url,
+                monitorStatus: monitor.status,
+                startTime: log.timestamp,
+                endTime: null,
+                durationMs: 0,
+                duration: '',
+                status: 'ONGOING',
+                affectedChecks: 1,
+                firstError: log.error || `HTTP ${log.statusCode}`,
+                lastError: log.error || `HTTP ${log.statusCode}`,
+              };
+            } else {
+              currentIncident.affectedChecks!++;
+              currentIncident.lastError = log.error || `HTTP ${log.statusCode}`;
+            }
+          } else {
+            if (currentIncident) {
+              const endTime = log.timestamp;
+              const durationMs = endTime.getTime() - currentIncident.startTime!.getTime();
+
+              monitorIncidents.push({
+                id: currentIncident.id!,
+                monitorId: currentIncident.monitorId!,
+                monitorName: currentIncident.monitorName!,
+                monitorUrl: currentIncident.monitorUrl!,
+                monitorStatus: currentIncident.monitorStatus!,
+                startTime: currentIncident.startTime!,
+                endTime,
+                durationMs,
+                duration: this.formatDuration(durationMs),
+                status: 'RESOLVED',
+                affectedChecks: currentIncident.affectedChecks!,
+                firstError: currentIncident.firstError,
+                lastError: currentIncident.lastError,
+              });
+
+              monitorDowntimeMs += durationMs;
+              currentIncident = null;
+            }
+          }
+        }
+
+        if (currentIncident) {
+          const endTime = isCurrentlyDown ? null : new Date();
+          const durationMs = endTime
+            ? endTime.getTime() - currentIncident.startTime!.getTime()
+            : Date.now() - currentIncident.startTime!.getTime();
+
+          monitorIncidents.push({
+            id: currentIncident.id!,
+            monitorId: currentIncident.monitorId!,
+            monitorName: currentIncident.monitorName!,
+            monitorUrl: currentIncident.monitorUrl!,
+            monitorStatus: currentIncident.monitorStatus!,
+            startTime: currentIncident.startTime!,
+            endTime,
+            durationMs,
+            duration: this.formatDuration(durationMs),
+            status: isCurrentlyDown ? 'ONGOING' : 'RESOLVED',
+            affectedChecks: currentIncident.affectedChecks!,
+            firstError: currentIncident.firstError,
+            lastError: currentIncident.lastError,
+          });
+
+          monitorDowntimeMs += durationMs;
+        }
+
+        allIncidents.push(...monitorIncidents);
+        totalDowntimeMs += monitorDowntimeMs;
+
+        const hasOngoingIncident = monitorIncidents.some((i) => i.status === 'ONGOING');
+        byMonitor.push({
+          monitorId: monitor.id,
+          monitorName: monitor.name,
+          monitorUrl: monitor.url,
+          monitorStatus: monitor.status,
+          incidentCount: monitorIncidents.length,
+          hasOngoingIncident,
+          totalDowntime: this.formatDuration(monitorDowntimeMs),
+          totalDowntimeMs: monitorDowntimeMs,
+        });
+      }
+
+      allIncidents.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+
+      byMonitor.sort((a, b) => b.incidentCount - a.incidentCount);
+
+      // Apply sorting based on sortBy parameter
+      if (sortBy) {
+        switch (sortBy) {
+          case IncidentSortBy.RECENT:
+            allIncidents.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+            break;
+          case IncidentSortBy.OLDEST:
+            allIncidents.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+            break;
+          case IncidentSortBy.NAME_ASC:
+            allIncidents.sort((a, b) => a.monitorName.localeCompare(b.monitorName));
+            break;
+          case IncidentSortBy.NAME_DESC:
+            allIncidents.sort((a, b) => b.monitorName.localeCompare(a.monitorName));
+            break;
+          case IncidentSortBy.DURATION_LONGEST:
+            allIncidents.sort((a, b) => b.durationMs - a.durationMs);
+            break;
+          case IncidentSortBy.DURATION_SHORTEST:
+            allIncidents.sort((a, b) => a.durationMs - b.durationMs);
+            break;
+        }
+      }
+
+      const ongoingCount = allIncidents.filter((i) => i.status === 'ONGOING').length;
+
+      return {
+        userId,
+        incidents: allIncidents,
+        byMonitor,
+        totalIncidents: allIncidents.length,
+        totalDowntime: this.formatDuration(totalDowntimeMs),
+        totalDowntimeMs,
+        ongoingIncidents: ongoingCount,
+        totalMonitors: monitors.length,
+        monitorsDown,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error getting incidents by user id');
     }
   }
 }

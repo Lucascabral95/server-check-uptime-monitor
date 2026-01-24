@@ -9,3 +9,6 @@ export * from './pagination';
 export * from './get-stats-user.interface';
 export * from './notify-state.interface';
 export * from './toast.interface';
+export * from './get-stats-logs-by-uptime-id.interface';
+export * from './get-incidents.interface';
+export * from './get-incidents-by-user-id.interface';

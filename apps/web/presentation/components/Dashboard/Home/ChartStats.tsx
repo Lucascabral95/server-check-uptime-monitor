@@ -19,7 +19,7 @@ const ChartStats = ({ statsUser }: ChartStatsProps) => {
              <div className="icon-status">
                 <MdCheckCircle 
                 className="icon"
-                 style={{ color: getStatusColor(statsUser.downLast24h.length > 0 ? Status.DOWN : Status.UP) }}
+                 style={{ color: getStatusColor(statsUser?.downLast24h?.length > 0 ? Status.DOWN : Status.UP) }}
                   />
              </div>
              <div className="data-monitors">

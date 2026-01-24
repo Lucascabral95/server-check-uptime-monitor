@@ -7,6 +7,8 @@ export enum SortBy {
     NAME_DESC = 'name_desc',
     STATUS_DOWN = 'status_down',
     STATUS_UP = 'status_up',
+    DURATION_LONGEST = 'duration_longest',
+    DURATION_SHORTEST = 'duration_shortest',
 }
 
 export interface PaginationParams {

@@ -16,6 +16,7 @@ $radius: 12px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin: 2rem 0;
 }
 
 .filter {
@@ -50,7 +51,10 @@ $radius: 12px;
 
 .search {
   .search-input-wrapper {
+    position: relative;
+
     .input-search {
+      width: 280px;
       height: 44px;
       padding: 0 46px 0 16px;
       border-radius: $radius;
@@ -67,6 +71,33 @@ $radius: 12px;
         outline: none;
         border-color: $accent;
         box-shadow: 0 0 0 3px rgba(59, 214, 113, 0.18);
+      }
+    }
+
+    .search-clear-button {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: none;
+      background-color: $bg-hover;
+      color: $text-muted;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+
+      .clear-icon {
+        font-size: 14px;
+      }
+
+      &:hover {
+        background-color: $accent;
+        color: #0f172a;
       }
     }
   }
@@ -99,6 +130,30 @@ $radius: 12px;
     font-size: 14px;
     font-weight: 600;
     color: $text-main;
+  }
+
+  .filter-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background-color: $accent;
+    color: #0f172a;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sort-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: $accent;
   }
 
   &:hover {

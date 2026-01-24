@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { UptimeService } from './uptime.service';
-import { CreateUptimeDto, UpdateUptimeDto, PaginationUptimeDto, GetUptimeDto, SortBy, GetStatsUserDto } from './dto';
+import { CreateUptimeDto, UpdateUptimeDto, PaginationUptimeDto, GetUptimeDto, SortBy, GetStatsUserDto, GetStatsLogsByUptimeIdDto, GetIncidentsDto, GetIncidentsByUserIdDto, PaginationIncidentsDto, IncidentSortBy } from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
@@ -80,6 +80,43 @@ export class UptimeController {
   @ApiResponse({ status: 200, type: GetUptimeDto })
   findOne(@Param('id') id: string, @Request() req: RequestUserDto) {
      return this.uptimeService.findOne(id, req.user.dbUserId);
+  }
+
+  @Get('logs/:uptimeId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener logs de un monitor por ID' })
+  @ApiParam({ name: 'uptimeId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, type: GetStatsLogsByUptimeIdDto })
+  findStatsLogsByUptimeId(@Param('uptimeId') uptimeId: string, @Request() req: RequestUserDto): Promise<GetStatsLogsByUptimeIdDto> {
+    return this.uptimeService.findStatsLogsByUptimeId(uptimeId, req.user.dbUserId);
+  }
+
+  @Get('incidents/user')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener todos los incidentes de todos los monitores del usuario (vista global del dashboard)' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por nombre o URL del monitor' })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: IncidentSortBy,
+    description: 'Ordenar resultados: recent (más recientes), oldest (más antiguos), name_asc (A-Z), name_desc (Z-A), duration_longest (mayor tiempo caído), duration_shortest (menor tiempo caído)',
+    example: IncidentSortBy.RECENT
+  })
+  @ApiResponse({ status: 200, type: GetIncidentsByUserIdDto })
+  getIncidentsByUserId(@Request() req: RequestUserDto, @Query() paginationDto: PaginationIncidentsDto): Promise<GetIncidentsByUserIdDto> {
+    return this.uptimeService.getIncidentsByUserId(req.user.dbUserId, paginationDto);
+  }
+
+  @Get('incidents/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener incidentes de un monitor (períodos de caída agrupados)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, type: GetIncidentsDto })
+  getIncidents(@Param('id') id: string, @Request() req: RequestUserDto): Promise<GetIncidentsDto> {
+    return this.uptimeService.getIncidents(id, req.user.dbUserId);
   }
   
   @Patch(':id')
