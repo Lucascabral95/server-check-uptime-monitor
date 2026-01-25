@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { CiFilter } from "react-icons/ci";
 import { MdOutlineSwapVert } from "react-icons/md";
 import { IoClose } from "react-icons/io5";
@@ -11,22 +11,29 @@ import SortMonitorInside from "./SortMonitorInside";
 import "./FiltersMonitor.scss";
 
 interface FiltersMonitorProps {
-  onFiltersChange: (filters: {
-    search?: string;
-    status?: Status | null;
-    sortBy?: SortBy | null;
-  }) => void;
+  searchValue: string;
+  selectedStatus: Status | "ALL" | null;
+  selectedSort: SortBy | null;
+  onSearchChange: (value: string) => void;
+  onStatusChange: (status: Status | null) => void;
+  onSortChange: (sortBy: SortBy | null) => void;
+  onClearSearch: () => void;
   monitorCount?: number;
 }
 
-const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) => {
+const FiltersMonitor = memo(({
+  searchValue,
+  selectedStatus,
+  selectedSort,
+  onSearchChange,
+  onStatusChange,
+  onSortChange,
+  onClearSearch,
+  monitorCount
+}: FiltersMonitorProps) => {
   const [openFilter, setOpenFilter] = useState(false);
   const [openFilterSort, setOpenFilterSort] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<Status | "ALL" | null>(null);
-  const [selectedSort, setSelectedSort] = useState<SortBy | null>(null);
-  const [displayStatus, setDisplayStatus] = useState<Status | "ALL" | null>(null);
-
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,43 +49,24 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      onFiltersChange({
-        search: searchValue || undefined,
-        status: selectedStatus === "ALL" ? undefined : selectedStatus,
-        sortBy: selectedSort,
-      });
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchValue, selectedStatus, selectedSort, onFiltersChange]);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value);
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onSearchChange(e.target.value);
   };
 
   const handleSearchClear = () => {
-    setSearchValue("");
-    searchInputRef.current?.focus();
+    onClearSearch();
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
   };
 
-  const handleStatusApply = (status: Status | null) => {
-    setSelectedStatus(status);
-    setDisplayStatus(status === null ? "ALL" : status);
-  };
-
-  const handleSortApply = (sortBy: SortBy | null) => {
-    setSelectedSort(sortBy);
-  };
-
-  const hasActiveFilters = searchValue || selectedStatus || selectedSort;
+  const hasActiveFilters = searchValue || (selectedStatus && selectedStatus !== "ALL") || selectedSort;
+  const activeFiltersCount = [selectedStatus && selectedStatus !== "ALL", selectedSort, searchValue].filter(Boolean).length;
 
   return (
     <div ref={containerRef} className="filter-container">
@@ -97,13 +85,14 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
               type="text"
               placeholder="Buscar por nombre o URL..."
               value={searchValue}
-              onChange={handleSearchChange}
+              onChange={handleSearchInputChange}
             />
             {searchValue && (
               <button
                 className="search-clear-button"
                 onClick={handleSearchClear}
                 aria-label="Limpiar búsqueda"
+                type="button"
               >
                 <IoClose className="clear-icon" />
               </button>
@@ -114,7 +103,7 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
         <div className="cont-filter-of-monitors">
           <div
             className={`filter-of-monitors ${hasActiveFilters ? "has-filters" : ""}`}
-            onClick={() => setOpenFilter((prev) => !prev)}
+            onClick={() => setOpenFilter(prev => !prev)}
           >
             <CiFilter
               className="icon-filter"
@@ -126,17 +115,17 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
             >
               Filtrar
             </span>
-            {(displayStatus || selectedSort || searchValue) && (
+            {activeFiltersCount > 0 && (
               <span className="filter-badge">
-                {[displayStatus, selectedSort, searchValue].filter(Boolean).length}
+                {activeFiltersCount}
               </span>
             )}
           </div>
           {openFilter && (
             <FilterMonitorInside
               onClose={() => setOpenFilter(false)}
-              onApply={handleStatusApply}
-              initialStatus={displayStatus}
+              onApply={onStatusChange}
+              initialStatus={selectedStatus}
             />
           )}
         </div>
@@ -144,7 +133,7 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
         <div className="cont-sort-by-status">
           <div
             className={`sort-by-status ${selectedSort ? "has-sort" : ""}`}
-            onClick={() => setOpenFilterSort((prev) => !prev)}
+            onClick={() => setOpenFilterSort(prev => !prev)}
           >
             <MdOutlineSwapVert
               className="icon-filter"
@@ -161,7 +150,7 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
           {openFilterSort && (
             <SortMonitorInside
               onClose={() => setOpenFilterSort(false)}
-              onApply={handleSortApply}
+              onApply={onSortChange}
               initialSort={selectedSort}
             />
           )}
@@ -170,6 +159,8 @@ const FiltersMonitor = ({ onFiltersChange, monitorCount }: FiltersMonitorProps) 
       
     </div>
   );
-};
+});
+
+FiltersMonitor.displayName = "FiltersMonitor";
 
 export default FiltersMonitor;

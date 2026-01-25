@@ -1,0 +1,148 @@
+$bg-card: #1a2130;
+$border-color: rgba(255, 255, 255, 0.07);
+$text-primary: #e7edf7;
+$text-muted: #93a4bd;
+$text-muted-dark: #6f819c;
+$accent-green: #58e06d;
+$accent-red: #ff5f5f;
+
+.monitor-stats-overview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 18px;
+}
+
+.stats-row {
+  display: grid;
+  gap: 16px;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  &:last-child {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+
+    &:last-child {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.015)
+  );
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  .label {
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-muted;
+  }
+
+  .status {
+    font-size: 20px;
+    font-weight: 700;
+
+    &.up {
+      color: $accent-green;
+    }
+  }
+
+  .value {
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .percentage {
+    font-size: 20px;
+    font-weight: 700;
+    color: $accent-green;
+
+    &.down {
+      color: $accent-red;
+    }
+
+    &.muted {
+      color: $text-muted-dark;
+    }
+  }
+
+  .sub {
+    font-size: 13px;
+    color: $text-muted-dark;
+    line-height: 1.4;
+  }
+
+  .link {
+    font-size: 13px;
+    color: $accent-green;
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px;
+
+    .percentage,
+    .status {
+      font-size: 18px;
+    }
+  }
+}
+
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.uptime-bars {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0;
+  overflow-x: auto;
+
+  .bar {
+    flex: 1;
+    min-width: 6px;
+    height: 26px;
+    border-radius: 6px;
+    background: $border-color;
+
+    &.up {
+      background: linear-gradient(
+        180deg,
+        lighten($accent-green, 5%),
+        darken($accent-green, 5%)
+      );
+    }
+  }
+
+  @media (max-width: 640px) {
+    .bar {
+      height: 20px;
+    }
+  }
+}

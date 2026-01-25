@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { IoIosArrowBack } from "react-icons/io";
 
 import {
@@ -16,12 +17,13 @@ import {
 
 import useUpdateMonitor from '@/presentation/hooks/useUpdateMonitor.hook';
 import Toast from '@/presentation/components/shared/Toasts/Toast';
-
 import './MonitorsEdit.scss';
 
 const TIMEOUT_TOAST = 3000;
 
 const EditMonitorPage = () => {
+  const router = useRouter();
+  
   const {
     url,
     name,
@@ -86,12 +88,16 @@ const EditMonitorPage = () => {
     setNotify(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleDetailsMonitor = () => {
+    router.push(`/dashboard/home/monitors/${uptimeById.data?.id}/details`);
+  };
+
   return (
     <div className="monitor-setup-wrapper">
       <div className="button-back-back">
-        <button className="b-back">
+        <button className="b-back" onClick={() => handleDetailsMonitor()}>
           <IoIosArrowBack className='icon' />
-          Detalle del monitor
+          Detalles del monitor
         </button>
       </div>
     <div className="title-update-post">

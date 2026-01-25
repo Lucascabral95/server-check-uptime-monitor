@@ -1,14 +1,22 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import type { Mock } from 'vitest'
 
 import EditMonitorPage from './page'
 import useUpdateMonitor from '@/presentation/hooks/useUpdateMonitor.hook'
 import { INTERVAL_OPTIONS } from '@/infraestructure/constants'
 
+/* =========================
+   Mocks
+========================= */
+
 vi.mock('next/navigation', () => ({
   useParams: vi.fn(() => ({ id: '123' })),
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
 }))
 
 vi.mock('@/presentation/hooks/useUpdateMonitor.hook', () => ({
@@ -16,27 +24,30 @@ vi.mock('@/presentation/hooks/useUpdateMonitor.hook', () => ({
 }))
 
 vi.mock('@/infraestructure/constants', async () => {
-  const actual = await vi.importActual('@/infraestructure/constants')
+  const actual = await vi.importActual<any>('@/infraestructure/constants')
   return {
     ...actual,
-    IconHttp: () => <div data-testid="icon-http" />,
-    IconChevron: () => <div data-testid="icon-chevron" />,
-    IconLock: () => <div data-testid="icon-lock" />,
+    IconHttp: () => <div />,
+    IconChevron: () => <div />,
+    IconLock: () => <div />,
   }
 })
 
 vi.mock('react-icons/io', () => ({
-  IoIosArrowBack: () => <div data-testid="arrow-back-icon" />,
+  IoIosArrowBack: () => <div />,
 }))
 
 vi.mock('@/presentation/components/shared/Toasts/Toast', () => ({
-  default: ({ visible, message, type }: any) =>
-    visible ? <div data-testid={`toast-${type}`}>{message}</div> : null,
+  default: () => null,
 }))
 
 vi.mock('./MonitorsEdit.scss', () => ({}))
 
-const mockUseUpdateMonitor = useUpdateMonitor as unknown as ReturnType<typeof vi.fn>
+const mockUseUpdateMonitor = useUpdateMonitor as unknown as Mock
+
+/* =========================
+   Tests
+========================= */
 
 describe('EditMonitorPage', () => {
   let queryClient: QueryClient
@@ -48,10 +59,19 @@ describe('EditMonitorPage', () => {
     intervalIndex: 1,
     setIntervalIndex: vi.fn(),
     currentFrequency: 60,
-    notify: { email: true, sms: false, voice: false, push: false },
+    notify: {
+      email: true,
+      sms: false,
+      voice: false,
+      push: false,
+    },
     setNotify: vi.fn(),
     uptimeById: {
-      data: { id: '123', name: 'Test Monitor', url: 'https://test.com' },
+      data: {
+        id: '123',
+        name: 'Test Monitor',
+        url: 'https://test.com',
+      },
       isLoading: false,
       isError: false,
     },
@@ -60,18 +80,19 @@ describe('EditMonitorPage', () => {
   }
 
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
   )
 
   beforeEach(() => {
-    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    vi.useFakeTimers()
-    mockUseUpdateMonitor.mockReturnValue(baseMock as any)
-  })
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
 
-  afterEach(() => {
-    vi.runOnlyPendingTimers()
-    vi.useRealTimers()
+    mockUseUpdateMonitor.mockReturnValue(baseMock)
   })
 
   it('renderiza el formulario', () => {
@@ -80,54 +101,59 @@ describe('EditMonitorPage', () => {
   })
 
   it('actualiza el nombre', () => {
-  render(<EditMonitorPage />, { wrapper })
+    render(<EditMonitorPage />, { wrapper })
 
-  const input = screen.getByDisplayValue('Test Monitor')
-  fireEvent.change(input, { target: { value: 'Nuevo nombre' } })
+    const input = screen.getByDisplayValue('Test Monitor')
+    fireEvent.change(input, { target: { value: 'Nuevo nombre' } })
 
-  expect(baseMock.setName).toHaveBeenCalled()
-})
+    expect(baseMock.setName).toHaveBeenCalledWith('Nuevo nombre')
+  })
 
   it('renderiza todos los intervalos', () => {
     render(<EditMonitorPage />, { wrapper })
-    INTERVAL_OPTIONS.forEach(opt => {
-      expect(screen.getAllByText(opt.label).length).toBeGreaterThan(0)
+
+    INTERVAL_OPTIONS.forEach(option => {
+      const items = screen.getAllByText(option.label)
+      expect(items.length).toBeGreaterThan(0)
     })
   })
 
   it('resalta el intervalo activo', () => {
     render(<EditMonitorPage />, { wrapper })
-    const ticks = screen.getAllByText(INTERVAL_OPTIONS[1].label)
-    const active = ticks.find(el => el.classList.contains('active-tick'))
-    expect(active).toBeDefined()
+
+    const activeTick = document.querySelector('.active-tick')
+    expect(activeTick).toHaveTextContent(
+      INTERVAL_OPTIONS[baseMock.intervalIndex].label
+    )
   })
 
   it('togglea notificación email', () => {
-  render(<EditMonitorPage />, { wrapper })
+    render(<EditMonitorPage />, { wrapper })
 
-  const email = screen.getByText('E-mail')
-  fireEvent.click(email)
+    fireEvent.click(screen.getByText('E-mail'))
 
-  expect(baseMock.setNotify).toHaveBeenCalled()
-})
+    expect(baseMock.setNotify).toHaveBeenCalledWith(expect.any(Function))
+  })
 
-  it('envía el formulario', async () => {
-    const submit = vi.fn()
-    mockUseUpdateMonitor.mockReturnValue({
-      ...baseMock,
-      submitUpdate: submit,
-    } as any)
+  it('envía el formulario', () => {
+    render(<EditMonitorPage />, { wrapper })
 
-    const { container } = render(<EditMonitorPage />, { wrapper })
-    const form = container.querySelector('form') as HTMLFormElement
-    fireEvent.submit(form)
-    expect(submit).toHaveBeenCalled()
+    fireEvent.submit(
+      screen.getByRole('button', { name: /actualizar monitor/i })
+    )
+
+    expect(baseMock.submitUpdate).toHaveBeenCalled()
   })
 
   it('actualiza el intervalo con el slider', () => {
     render(<EditMonitorPage />, { wrapper })
-    const slider = screen.getByRole('slider')
+
+    const slider = document.querySelector(
+      'input[type="range"]'
+    ) as HTMLInputElement
+
     fireEvent.change(slider, { target: { value: '3' } })
-    expect(baseMock.setIntervalIndex).toHaveBeenCalled()
+
+    expect(baseMock.setIntervalIndex).toHaveBeenCalledWith(3)
   })
 })

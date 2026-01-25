@@ -1,22 +1,27 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import FiltersMonitor from './FiltersMonitor'
 import { Status, SortBy } from '@/infraestructure/interfaces'
 
 describe('FiltersMonitor', () => {
-  const mockOnFiltersChange = vi.fn()
+  const mockOnSearchChange = vi.fn()
+  const mockOnStatusChange = vi.fn()
+  const mockOnSortChange = vi.fn()
+  const mockOnClearSearch = vi.fn()
+
   const defaultProps = {
-    onFiltersChange: mockOnFiltersChange,
-    monitorCount: 5
+    searchValue: '',
+    selectedStatus: null,
+    selectedSort: null,
+    onSearchChange: mockOnSearchChange,
+    onStatusChange: mockOnStatusChange,
+    onSortChange: mockOnSortChange,
+    onClearSearch: mockOnClearSearch,
+    monitorCount: 5,
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   it('renders monitor count correctly', () => {
@@ -31,8 +36,8 @@ describe('FiltersMonitor', () => {
 
   it('opens filter dropdown when clicked', () => {
     render(<FiltersMonitor {...defaultProps} />)
-    const filterButton = screen.getByText('Filtrar').closest('.filter-of-monitors')
-    fireEvent.click(filterButton!)
+
+    fireEvent.click(screen.getByText('Filtrar'))
 
     expect(screen.getByText('Todos')).toBeInTheDocument()
     expect(screen.getByText('Operativos')).toBeInTheDocument()
@@ -41,114 +46,82 @@ describe('FiltersMonitor', () => {
 
   it('opens sort dropdown when clicked', () => {
     render(<FiltersMonitor {...defaultProps} />)
-    const sortButton = screen.getByText('Ordenar').closest('.sort-by-status')
-    fireEvent.click(sortButton!)
+
+    fireEvent.click(screen.getByText('Ordenar'))
 
     expect(screen.getByText('Orden alfabético')).toBeInTheDocument()
     expect(screen.getByText('Orden por fecha')).toBeInTheDocument()
     expect(screen.getByText('Orden por estado')).toBeInTheDocument()
   })
 
-  it('handles search input with debounce', () => {
+  it('calls onSearchChange when typing', () => {
     render(<FiltersMonitor {...defaultProps} />)
-    const searchInput = screen.getByPlaceholderText('Buscar por nombre o URL...')
 
-    fireEvent.change(searchInput, { target: { value: 'test' } })
+    const input = screen.getByPlaceholderText('Buscar por nombre o URL...')
+    fireEvent.change(input, { target: { value: 'test' } })
 
-    expect(mockOnFiltersChange).not.toHaveBeenCalled()
-
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
-
-    expect(mockOnFiltersChange).toHaveBeenCalledWith({ search: 'test', status: null, sortBy: null })
+    expect(mockOnSearchChange).toHaveBeenCalledWith('test')
   })
 
   it('clears search when clear button is clicked', () => {
-    render(<FiltersMonitor {...defaultProps} />)
-    const searchInput = screen.getByPlaceholderText('Buscar por nombre o URL...')
+    render(<FiltersMonitor {...defaultProps} searchValue="test" />)
 
-    fireEvent.change(searchInput, { target: { value: 'test' } })
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
+    fireEvent.click(screen.getByLabelText('Limpiar búsqueda'))
 
-    const clearButton = screen.getByLabelText('Limpiar búsqueda')
-    fireEvent.click(clearButton)
-
-    expect(searchInput).toHaveValue('')
-    // The debounce will trigger again with empty value (becomes undefined)
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
-    expect(mockOnFiltersChange).toHaveBeenLastCalledWith({ search: undefined, status: null, sortBy: null })
+    expect(mockOnClearSearch).toHaveBeenCalled()
   })
 
   it('applies status filter when option selected', () => {
     render(<FiltersMonitor {...defaultProps} />)
 
-    const filterButton = screen.getByText('Filtrar').closest('.filter-of-monitors')
-    fireEvent.click(filterButton!)
+    fireEvent.click(screen.getByText('Filtrar'))
     fireEvent.click(screen.getByText('Operativos'))
     fireEvent.click(screen.getByText('Aplicar'))
 
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
+    expect(mockOnStatusChange).toHaveBeenCalledWith(Status.UP)
+  })
 
-    expect(mockOnFiltersChange).toHaveBeenCalledWith({ search: undefined, status: Status.UP, sortBy: null })
+  it('applies ALL status correctly', () => {
+    render(<FiltersMonitor {...defaultProps} selectedStatus={Status.UP} />)
+
+    fireEvent.click(screen.getByText('Filtrar'))
+    fireEvent.click(screen.getByText('Todos'))
+    fireEvent.click(screen.getByText('Aplicar'))
+
+    expect(mockOnStatusChange).toHaveBeenCalledWith(null)
   })
 
   it('applies sort filter when option selected', () => {
     render(<FiltersMonitor {...defaultProps} />)
 
-    const sortButton = screen.getByText('Ordenar').closest('.sort-by-status')
-    fireEvent.click(sortButton!)
+    fireEvent.click(screen.getByText('Ordenar'))
     fireEvent.click(screen.getByText('A => Z'))
     fireEvent.click(screen.getByText('Aplicar'))
 
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
-
-    expect(mockOnFiltersChange).toHaveBeenCalledWith({ search: undefined, status: null, sortBy: SortBy.NAME_ASC })
+    expect(mockOnSortChange).toHaveBeenCalledWith(SortBy.NAME_ASC)
   })
 
   it('shows filter badge when filters are active', () => {
-    render(<FiltersMonitor {...defaultProps} monitorCount={1} />)
+    render(
+      <FiltersMonitor
+        {...defaultProps}
+        searchValue="test"
+        selectedStatus={Status.UP}
+      />
+    )
+
     const filterButton = screen.getByText('Filtrar').closest('.filter-of-monitors')!
-
-    expect(filterButton.querySelector('.filter-badge')).not.toBeInTheDocument()
-
-    fireEvent.click(filterButton)
-    fireEvent.click(screen.getByText('Operativos'))
-    fireEvent.click(screen.getByText('Aplicar'))
-
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
-
     expect(filterButton.querySelector('.filter-badge')).toBeInTheDocument()
   })
 
   it('closes dropdowns when clicking outside', () => {
     render(<FiltersMonitor {...defaultProps} />)
 
-    const filterButton = screen.getByText('Filtrar').closest('.filter-of-monitors')
-    fireEvent.click(filterButton!)
+    fireEvent.click(screen.getByText('Filtrar'))
     expect(screen.getByText('Todos')).toBeInTheDocument()
 
     fireEvent.mouseDown(document.body)
-    vi.runOnlyPendingTimers()
 
     expect(screen.queryByText('Todos')).not.toBeInTheDocument()
-  })
-
-  it('applies ALL status correctly', () => {
-    render(<FiltersMonitor {...defaultProps} />)
-
-    const filterButton = screen.getByText('Filtrar').closest('.filter-of-monitors')
-    fireEvent.click(filterButton!)
-    fireEvent.click(screen.getByText('Todos'))
-    fireEvent.click(screen.getByText('Aplicar'))
-
-    vi.advanceTimersByTime(300)
-    vi.runOnlyPendingTimers()
-
-    expect(mockOnFiltersChange).toHaveBeenCalledWith({ search: undefined, status: null, sortBy: null })
   })
 })

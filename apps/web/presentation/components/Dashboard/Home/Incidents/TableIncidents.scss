@@ -1,0 +1,132 @@
+$border-color: rgba(255, 255, 255, 0.07);
+$text-primary: #e7edf7;
+$text-muted: #93a4bd;
+$text-muted-dark: #6f819c;
+$accent-green: #58e06d;
+$accent-red: #ff5f5f;
+
+.incidents-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.015)
+  );
+  border: 1px solid $border-color;
+  border-radius: 14px;
+}
+
+.table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  box-sizing: border-box;
+  scrollbar-width: none;        
+  -ms-overflow-style: none;     
+
+  &::-webkit-scrollbar {
+    display: none;              
+  }
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+
+  thead {
+    th {
+      font-size: 13px;
+      font-weight: 600;
+      color: $text-muted;
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid $border-color;
+      white-space: nowrap;
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid $border-color;
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      td {
+        padding: 14px 16px;
+        font-size: 14px;
+        color: $text-primary;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 0;
+      }
+    }
+  }
+}
+
+.status {
+  font-weight: 600;
+
+  &.resolved {
+    color: $accent-green;
+  }
+}
+
+.monitor {
+  font-weight: 600;
+}
+
+.cause {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  .code {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #fff;
+    flex-shrink: 0;
+
+    &-500 {
+      background: #ef4444;
+    }
+
+    &-503 {
+      background: #f97316;
+    }
+  }
+
+  .text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.comments,
+.duration,
+.visibility {
+  font-size: 13px;
+}
+
+.date {
+  font-size: 13px;
+  color: $text-muted-dark;
+}
+
+@media (max-width: 768px) {
+    table {
+        min-width: 1100px;
+  }
+}

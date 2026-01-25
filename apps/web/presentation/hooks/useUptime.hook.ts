@@ -1,3 +1,8 @@
+import { 
+    useQuery, 
+    useMutation,
+     useQueryClient,
+     } from "@tanstack/react-query";
 import {
     getAllUptimes,
     getUptimeById,
@@ -7,18 +12,29 @@ import {
     getStatsUptime,
     forceFlushUptime,
     getMyStatsUser,
+    getStatsLogsByUptimeId,
+    getIncidents,
+    getIncidentsByUser,
 } from "@/lib/Resources/Api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CreateUptimeDto, UpdateUptimeDto, GetAllUptimesDto, GetStatsUserInterface, GetUptimeDto } from "@/infraestructure/interfaces";
+import { 
+    CreateUptimeDto,
+    UpdateUptimeDto,
+    GetAllUptimesDto,
+    GetStatsUserInterface,
+    GetUptimeDto,
+    GetStatsLogsByUptimeIdInterface,
+    GetIncidentOfMonitorInterface,
+    GetIncidentsByUserIdInterface,
+} from "@/infraestructure/interfaces";
 import { PaginationParams } from "@/infraestructure/interfaces";
 
 const useUptime = (id?: string, params?: PaginationParams) => {
     const queryClient = useQueryClient();
 
-    // Queries
     const uptimes = useQuery<GetAllUptimesDto>({
         queryKey: ["uptimes", params],
         queryFn: () => getAllUptimes(params),
+        placeholderData: (previousData) => previousData,
     });
 
     const uptimeById = useQuery<GetUptimeDto>({
@@ -37,7 +53,24 @@ const useUptime = (id?: string, params?: PaginationParams) => {
         queryFn: () => getMyStatsUser(),
     });
 
-    // Mutations
+    const statsLogsByUptimeId = useQuery<GetStatsLogsByUptimeIdInterface>({
+        queryKey: ["statsLogsByUptimeId", id],
+        queryFn: () => getStatsLogsByUptimeId(id!),
+        enabled: !!id,
+    });
+
+    const getIncidentsByMonitorId = useQuery<GetIncidentOfMonitorInterface>({
+        queryKey: ["getIncidentsByMonitorId", id],
+        queryFn: () => getIncidents(id!),
+        enabled: !!id,
+    });
+
+    const incidentsByUser = useQuery<GetIncidentsByUserIdInterface>({
+        queryKey: ["getIncidentsByUserId", params],
+        queryFn: () => getIncidentsByUser({ search: params?.search, sortBy: params?.sortBy as string }),
+        placeholderData: (previousData) => previousData,
+    });
+
     const createMutation = useMutation({
         mutationFn: (data: CreateUptimeDto) => createUptime(data),
         onSuccess: () => {
@@ -69,13 +102,13 @@ const useUptime = (id?: string, params?: PaginationParams) => {
     });
 
     return {
-        // Queries
         uptimes,
         uptimeById,
         stats,
         myStats,
-
-        // Mutations
+        statsLogsByUptimeId,
+        getIncidentsByMonitorId,
+        incidentsByUser,
         createUptime: createMutation,
         updateUptime: updateMutation,
         deleteUptime: deleteMutation,

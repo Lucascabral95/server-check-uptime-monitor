@@ -9,7 +9,7 @@ import { MdAccessTime, MdCheckCircle } from "react-icons/md";
 import { formatDate, formatLastCheck, formatTimeRemaining, getStatusColor } from "@/presentation/utils";
 import { GetUptimeDto } from '@/infraestructure/interfaces';
 import { useUptimeCheck } from "@/presentation/hooks";
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import useUptime from "@/presentation/hooks/useUptime.hook";
 import "./CardUptime.scss";
 
@@ -18,6 +18,7 @@ interface CardUptimeProps {
 }
 
 const REDIRECT_FOR_EDIT = "/dashboard/home/monitors/"
+const REDIRECT_FOR_DETAILS = "/dashboard/home/monitors/"
 
 const CardUptime = ({ uptimes }: CardUptimeProps) => {
   const { deleteUptime } = useUptime(); 
@@ -70,7 +71,9 @@ const CardUptime = ({ uptimes }: CardUptimeProps) => {
 
   return (
     <div className="card-uptime">
-      <div className="card-uptime-container">
+      <div className="card-uptime-container" 
+      onClick={() => redirect(`${REDIRECT_FOR_DETAILS}${uptimes.id}/details`)}
+      >
         <div className="status-icon-content-main">
           <div className="container-icon">
             <FaCircle className="icon" style={{ color: getStatusColor(uptimes.status) }} />

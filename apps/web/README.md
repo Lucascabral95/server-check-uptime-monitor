@@ -1,168 +1,634 @@
-# Web - Server Check App Frontend
+<p align="center">
+  <a href="https://nextjs.org/" target="_blank"><img src="https://img.shields.io/badge/Next.js-16.1-black?style=flat-square&logo=next.js" alt="Next.js"/></a>
+  <a href="https://react.dev/" target="_blank"><img src="https://img.shields.io/badge/React-19.2-blue?style=flat-square&logo=react" alt="React"/></a>
+  <a href="https://www.typescriptlang.org/" target="_blank"><img src="https://img.shields.io/badge/TypeScript-5.x-blue?style=flat-square&logo=typescript" alt="TypeScript"/></a>
+</p>
 
-## ¿Qué es?
+<p align="center">Dashboard web moderno para visualizar y monitorear el estado de servidores en tiempo real, construido con <a href="https://nextjs.org" target="_blank">Next.js 16</a> y <a href="https://react.dev" target="_blank">React 19</a>.</p>
 
-Dashboard web moderno para visualizar y monitorear el estado de servidores en tiempo real. Es el frontend del sistema **Server Check App**, conectado al backend NestJS mediante APIs REST.
+<p align="center">
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/next.svg" alt="NPM Version" /></a>
+<a href="https://github.com/Lucascabral95/server-check-app" target="_blank"><img src="https://img.shields.io/badge/license-UNLICENSED-red.svg" alt="Package License" /></a>
+<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
+</p>
 
-## Stack Tecnológico
+## Web — Server Check App Dashboard
 
-| Tecnología | Versión | Descripción |
-|------------|---------|-------------|
-| **Next.js** | 16.1.1 | Framework React con App Router |
-| **React** | 19.2.3 | Biblioteca UI con últimas features |
-| **TypeScript** | 5.x | Tipado estático |
-| **Tailwind CSS** | 4.x | Estilizado con nuevo motor CSS nativo |
+Dashboard web moderno para el monitoreo de uptime de servicios web, parte del monorepo Server Check App. Este servicio provee una interfaz intuitiva para visualizar, gestionar y analizar el estado de monitores en tiempo real.
 
-## Características
+## Estado
 
-- **Server Components por defecto**: Renderizado en servidor para mejor performance
-- **Tailwind CSS 4**: Nueva versión con motor CSS nativo (sin PostCSS en la mayoría de casos)
+- Stack: Next.js 16 + React 19 + TypeScript
+- State Management: Zustand + TanStack Query
+- Authentication: AWS Cognito (Amplify)
+- Styling: SCSS Modules + PostCSS
+- Testing: Vitest + Happy DOM
+- Entrypoint: [app/layout.tsx](app/layout.tsx)
+- Default Port: `3000`
+
+## Objetivo
+
+Proveer una experiencia de usuario moderna y responsiva para el monitoreo de servicios web que soporte:
+- Autenticación y autorización mediante AWS Cognito
+- Visualización en tiempo real del estado de monitores
+- Gestión completa de monitores (CRUD)
+- Filtrado y ordenamiento de monitores
+- Visualización de estadísticas y logs históricos
+- Interfaz responsiva para dispositivos móviles y desktop
+
+## Características principales
+
+- **App Router de Next.js 16**: Renderizado híbrido con Server y Client Components
+- **Autenticación AWS Cognito**: Flujo completo de registro, login y verificación de email
+- **Gestión de estado**: Zustand para estado global, TanStack Query para estado del servidor
+- **Formularios validados**: React Hook Form + Zod para validación de formulario
+- **API optimizada**: Axios con interceptores para inyección automática de tokens
+- **Testing completo**: Vitest con Happy DOM para componentes y hooks
+- **Arquitectura limpia**: Separación en capas (presentation, infrastructure, lib)
 - **TypeScript estricto**: Type safety en todo el código
-- **Dark mode automático**: Detecta preferencia del sistema
-- **Fuentes optimizadas**: Geist Sans y Geist Mono via `next/font`
+- **Rutas protegidas**: Route groups para auth y dashboard
 
-## Estructura del Proyecto
+## Estructura del proyecto
 
 ```
 apps/web/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx          # Layout raíz (fuentes, metadata)
-│   ├── page.tsx            # Homepage
-│   └── globals.css         # Estilos globales + Tailwind
-├── public/                 # Archivos estáticos
-├── next.config.ts          # Configuración Next.js
-├── tailwind.config.ts      # Configuración Tailwind
-└── package.json            # Dependencias
+├── app/                                    # Next.js App Router
+│   ├── layout.tsx                          # Layout raíz (providers, fuentes)
+│   ├── page.tsx                            # Homepage (landing)
+│   ├── globals.css                         # Estilos globales
+│   ├── auth/                               # Rutas públicas de autenticación
+│   │   ├── login/
+│   │   │   ├── page.tsx                    # Página de login
+│   │   │   └── page.test.tsx               # Tests
+│   │   ├── register/
+│   │   │   ├── page.tsx                    # Página de registro
+│   │   │   ├── register.scss               # Estilos
+│   │   │   └── page.test.tsx               # Tests
+│   │   └── validate-email/
+│   │       ├── page.tsx                    # Validación de email
+│   │       ├── validate-email.scss         # Estilos
+│   │       └── page.test.tsx               # Tests
+│   └── dashboard/                          # Rutas protegidas (requieren auth)
+│       ├── layout.tsx                      # Layout del dashboard
+│       ├── home/                           # Página principal de monitores
+│       │   ├── page.tsx                    # Lista de monitores
+│       │   ├── monitors/[id]/
+│       │   │   ├── edit/                   # Editar monitor
+│       │   │   │   ├── page.tsx
+│       │   │   │   ├── MonitorsEdit.scss
+│       │   │   │   └── page.test.tsx
+│       │   │   └── details/                # Detalles del monitor
+│       │   │       ├── page.tsx
+│       │   │       └── MonitorsDetails.scss
+│       │   ├── monitors/new/               # Crear nuevo monitor
+│       │   │   └── http/
+│       │   │       ├── page.tsx
+│       │   │       ├── MonitorNewHttp.scss
+│       │   │       └── page.test.tsx
+│       │   ├── DashboardHome.test.tsx      # Tests
+│       │   └── dashboard-home.scss         # Estilos
+│       ├── incidents/                      # Página de incidentes
+│       ├── servers/                        # Estado de servidores
+│       └── settings/                       # Configuración
+├── presentation/                           # Capa de presentación (frontend)
+│   ├── components/                         # Componentes React
+│   │   ├── auth/                           # Componentes de autenticación
+│   │   │   ├── AuthCard.tsx                # Card contenedor de auth
+│   │   │   ├── AuthLogo.tsx                # Logo de la app
+│   │   │   ├── LoginForm.tsx               # Formulario de login
+│   │   │   ├── RegisterForm.tsx            # Formulario de registro
+│   │   │   ├── ValidateEmailForm.tsx       # Formulario de validación
+│   │   │   ├── AuthErrorAlert.tsx          # Alertas de error
+│   │   │   ├── PasswordRequirementsIndicator.tsx
+│   │   │   └── *.test.tsx                  # Tests de componentes
+│   │   ├── Dashboard/                      # Componentes del dashboard
+│   │   │   ├── Categories.tsx              # Categorías de navegación
+│   │   │   ├── LogoutProfile.tsx           # Botón de logout
+│   │   │   ├── DashboardComponents.scss    # Estilos compartidos
+│   │   │   └── Home/                       # Componentes de Home
+│   │   │       ├── CardUptime.tsx          # Card de monitor
+│   │   │       ├── ChartStats.tsx          # Gráfico de estadísticas
+│   │   │       ├── ChartStatsLastDay.tsx   # Gráfico último día
+│   │   │       ├── MenuDropdownCardUptime.tsx
+│   │   │       └── DetailsUptime/          # Componentes de detalles
+│   │   │           ├── MonitorDetailsHeader.tsx
+│   │   │           ├── MonitorStatsOverview.tsx
+│   │   │           └── LatestIncidents.tsx
+│   │   ├── Filters/                        # Componentes de filtrado
+│   │   │   └── FiltersMonitor/
+│   │   │       ├── FiltersMonitor.tsx      # Filtros principales
+│   │   │       ├── FilterMonitorInside.tsx # Filtros internos
+│   │   │       ├── SortMonitorInside.tsx   # Ordenamiento
+│   │   │       ├── FiltersMonitor.scss
+│   │   │       └── *.test.tsx              # Tests
+│   │   ├── Structures/                     # Componentes estructurales
+│   │   │   ├── Dashboard/
+│   │   │   │   ├── StructureDashboard.tsx  # Layout del dashboard
+│   │   │   │   └── StructureDashboard.scss
+│   │   │   ├── LoginRegisterValidate/
+│   │   │   │   ├── StructureLoginRegisterValidate.tsx
+│   │   │   │   └── StructureLoginRegisterValidate.scss
+│   │   │   └── Dashboard/Home/
+│   │   │       ├── StructureChartStats.tsx
+│   │   │       └── StructureChartStats.scss
+│   │   └── shared/                         # Componentes compartidos
+│   │       ├── states/
+│   │       │   ├── LoadingState.tsx        # Estado de carga
+│   │       │   ├── ErrorState.tsx          # Estado de error
+│   │       │   └── *.scss, *.test.tsx
+│   │       └── Toasts/
+│   │           ├── Toast.tsx               # Componente de toast
+│   │           └── *.scss, *.test.tsx
+│   ├── hooks/                              # Custom hooks
+│   │   ├── useUptime.hook.ts               # Hook de monitores
+│   │   ├── useNewMonitor.hook.ts           # Hook para crear monitor
+│   │   ├── useUpdateMonitor.hook.ts        # Hook para actualizar
+│   │   ├── usePingLogs.hook.ts             # Hook de logs
+│   │   ├── useUptimeCheck.hook.ts          # Hook de verificación
+│   │   ├── useMonitorById.hook.ts          # Hook por ID
+│   │   ├── useMonitorByIdWithStatsLogs.ts  # Hook con estadísticas
+│   │   ├── useUsers.hook.ts                # Hook de usuarios
+│   │   └── *.test.tsx                      # Tests de hooks
+│   └── utils/                              # Utilidades
+│       ├── formatDate.utils.ts             # Formato de fecha
+│       ├── formatInterval.utils.ts         # Formato de intervalo
+│       ├── formatLastCheck.utils.ts        # Último check
+│       ├── formatTimeRemaining.utils.ts    # Tiempo restante
+│       ├── getStatusColor.utils.ts         # Color por estado
+│       ├── jwt.utils.ts                    # Utilidades JWT
+│       └── porcentHealthy.utils.ts         # Porcentaje salud
+├── infraestructure/                        # Capa de infraestructura
+│   ├── Api/
+│   │   └── Axios-config.ts                 # Configuración de Axios
+│   ├── Tans-Tack-Query/
+│   │   └── TansTackQuery.global.tsx        # Provider de React Query
+│   ├── constants/                          # Constantes de la app
+│   │   ├── dashboardCategories.constants.ts
+│   │   ├── protectedRoutes.constants.ts    # Rutas protegidas
+│   │   ├── publicRoutes.constants.ts       # Rutas públicas
+│   │   ├── interval-optinons.constants.ts  # Opciones de intervalo
+│   │   ├── icons-svg.constants.tsx         # Iconos SVG
+│   │   └── index.ts
+│   ├── interfaces/                         # Interfaces TypeScript
+│   │   ├── uptime.interface.ts             # Interfaces de monitores
+│   │   ├── user.interface.ts               # Interfaces de usuarios
+│   │   ├── login.interface.ts              # Interfaces de login
+│   │   ├── register.interface.ts           # Interfaces de registro
+│   │   ├── validate-email.interface.ts     # Interfaces de validación
+│   │   ├── enums.ts                        # Enumerados (Status, Role)
+│   │   ├── pagination/                     # Interfaces de paginación
+│   │   │   ├── uptime-pagination.interface.ts
+│   │   │   ├── ping-logs-pagination.interface.ts
+│   │   │   └── index.ts
+│   │   ├── get-stats-logs-by-uptime-id.interface.ts
+│   │   ├── get-stats-user.interface.ts
+│   │   ├── toast.interface.ts
+│   │   ├── notify-state.interface.ts
+│   │   └── index.ts
+│   ├── models/                             # Schemas de Zod
+│   │   ├── createUptimeSchema.ts           # Schema para crear monitor
+│   │   ├── login.schema.ts                 # Schema de login
+│   │   ├── register.schema.ts              # Schema de registro
+│   │   ├── validate-email.schema.ts        # Schema de validación
+│   │   └── index.ts
+│   └── services/                           # Servicios de lógica de negocio
+│       ├── auth.service.ts                 # Servicio de autenticación
+│       ├── auth.service.test.ts            # Tests del servicio
+│       └── index.ts
+└── lib/                                    # Capa de librerías
+    ├── axios/
+    │   └── axios.ts                        # Configuración base de Axios
+    ├── cognito/
+    │   ├── amplify-cognito.client.ts       # Cliente de Amplify
+    │   └── cognito.ts                      # Configuración de Cognito
+    ├── Resources/Api/                      # Recursos de API
+    │   ├── UptimeApi.ts                    # API de monitores
+    │   ├── UsersApi.ts                     # API de usuarios
+    │   ├── PingLogsApi.ts                  # API de logs
+    │   └── index.ts
+    ├── hooks/                              # Hooks de librería
+    │   ├── useAuth.ts                      # Hook de autenticación
+    │   ├── useAuth.test.ts                 # Tests
+    │   └── index.ts
+    └── store/                              # Zustand stores
+        └── authStore.ts                    # Store de autenticación
+├── public/                                 # Archivos estáticos
+├── next.config.ts                          # Configuración de Next.js
+├── postcss.config.mjs                      # Configuración de PostCSS (Tailwind 4)
+├── vitest.config.ts                        # Configuración de Vitest
+├── eslint.config.mjs                       # Configuración de ESLint
+├── tsconfig.json                           # Configuración de TypeScript
+└── package.json                            # Dependencias y scripts
 ```
 
-## Empezando
+## Modelo de datos
 
-### 1. Instalar dependencias
+### Interfaces TypeScript
+
+**GetUptimeDto** (Monitor individual):
+```typescript
+interface GetUptimeDto {
+  id: string;
+  userId: string;
+  name: string;
+  url: string;
+  frequency: number;          // Intervalo en segundos
+  isActive: boolean;
+  nextCheck: Date;
+  lastCheck: Date;
+  status: Status;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+**GetAllUptimesDto** (Lista con paginación):
+```typescript
+interface GetAllUptimesDto {
+  data: GetUptimeDto[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    nextPage: boolean;
+    prevPage: boolean;
+    totalItems: number;
+    itemsPerPage: number;
+  };
+}
+```
+
+**DataUserGetDto** (Usuario):
+```typescript
+interface DataUserGetDto {
+  id: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### Estados del Monitor
+
+```typescript
+enum Status {
+  UP = 'UP',           // Servicio disponible
+  DOWN = 'DOWN',       // Servicio no disponible
+  PENDING = 'PENDING'  // Pendiente de primer check
+}
+```
+
+### Roles de Usuario
+
+```typescript
+enum Role {
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+  GUEST = 'GUEST'
+}
+```
+
+## Requisitos previos
+
+- Node.js >= 18
+- Backend de NestJS corriendo en `http://localhost:4000`
+- AWS Cognito configurado (o usar entorno de desarrollo)
+
+## Instalación
 
 ```bash
+# Instalar dependencias
 npm install
+
+# Copiar template de variables de entorno (si existe)
+cp .env.example .env.local
 ```
 
-### 2. Iniciar servidor de desarrollo
+## Configuración de entorno
+
+Edita el archivo `.env.local` con tus credenciales:
+
+```env
+# API Backend
+NEXT_PUBLIC_API_URL_BACKEND=http://localhost:4000
+
+# AWS Cognito (opcional para desarrollo)
+NEXT_PUBLIC_AWS_REGION=us-east-1
+NEXT_PUBLIC_AWS_USER_POOLS_ID=your_user_pool_id
+NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID=your_client_id
+```
+
+### Variables de entorno
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL_BACKEND` | URL del backend NestJS | `http://localhost:4000` |
+| `NEXT_PUBLIC_AWS_REGION` | Región de AWS Cognito | `us-east-1` |
+| `NEXT_PUBLIC_AWS_USER_POOLS_ID` | ID del User Pool de Cognito | *required* |
+| `NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID` | ID del Client App de Cognito | *required* |
+
+## Scripts útiles
+
+```bash
+# Desarrollo
+npm run dev              # Inicia servidor de desarrollo (port 3000)
+
+# Producción
+npm run build            # Compila para producción
+npm run start            # Inicia servidor de producción
+
+# Tests
+npm run test             # Tests unitarios con watch mode
+npm run test:run         # Ejecuta tests una vez
+npm run test:ui          # UI de Vitest
+npm run test:coverage    # Tests con cobertura
+
+# Calidad de código
+npm run lint             # Ejecutar ESLint
+```
+
+## Rutas de la aplicación
+
+### Rutas Públicas (Auth)
+
+| Ruta | Descripción |
+|------|-------------|
+| `/` | Homepage (landing) |
+| `/auth/login` | Página de inicio de sesión |
+| `/auth/register` | Página de registro |
+| `/auth/validate-email` | Validación de email con código |
+
+### Rutas Protegidas (Dashboard)
+
+| Ruta | Descripción | Auth |
+|------|-------------|------|
+| `/dashboard/home` | Lista de monitores | :white_check_mark: |
+| `/dashboard/home/monitors/new/http` | Crear monitor HTTP | :white_check_mark: |
+| `/dashboard/home/monitors/[id]/edit` | Editar monitor | :white_check_mark: |
+| `/dashboard/home/monitors/[id]/details` | Detalles del monitor | :white_check_mark: |
+| `/dashboard/incidents` | Incidentes | :white_check_mark: |
+| `/dashboard/servers` | Estado de servidores | :white_check_mark: |
+| `/dashboard/settings` | Configuración | :white_check_mark: |
+
+## Autenticación
+
+La aplicación utiliza **AWS Cognito** mediante AWS Amplify para la autenticación:
+
+### Flujo de autenticación
+
+1. **Registro**: Usuario se registra con email y contraseña
+2. **Verificación**: Se envía código de verificación al email
+3. **Confirmación**: Usuario ingresa código para confirmar email
+4. **Login**: Usuario ingresa credenciales y recibe tokens JWT
+5. **Sesión**: Tokens se almacenan en Zustand con persistencia
+
+### AuthService
+
+Servicio centralizado para operaciones de autenticación:
+
+```typescript
+// Registro
+await authService.register({ email, password });
+
+// Confirmar email
+await authService.confirmEmail({ email, code });
+
+// Reenviar código
+await authService.resendConfirmationCode(email);
+
+// Login
+await authService.login({ email, password });
+
+// Logout
+await authService.logout();
+
+// Obtener usuario actual
+const user = await authService.getCurrentUser();
+```
+
+### Estado de Autenticación (Zustand)
+
+```typescript
+interface AuthState {
+  isAuthenticated: boolean;
+  user: LoginResponseUser | null;
+  tokens: AuthTokens | null;
+  error: LoginException | null;
+  isLoading: boolean;
+}
+```
+
+El estado se persiste en `localStorage` con la clave `auth-storage`.
+
+## Gestión de Estado
+
+### Zustand (Estado Global)
+
+Para estado del cliente (autenticación, UI):
+
+```typescript
+import { useAuthStore } from '@/lib/store/authStore';
+
+const { user, isAuthenticated, logout } = useAuthStore();
+```
+
+### TanStack Query (Estado del Servidor)
+
+Para datos del servidor (monitores, estadísticas):
+
+```typescript
+import useUptime from '@/presentation/hooks/useUptime.hook';
+
+const { uptimes, createUptime, deleteUptime } = useUptime();
+```
+
+**Queries disponibles:**
+- `uptimes` - Lista de monitores con paginación
+- `uptimeById` - Monitor por ID
+- `stats` - Estadísticas generales
+- `myStats` - Estadísticas del usuario
+- `statsLogsByUptimeId` - Estadísticas y logs de un monitor
+
+**Mutations disponibles:**
+- `createUptime` - Crear nuevo monitor
+- `updateUptime` - Actualizar monitor existente
+- `deleteUptime` - Eliminar monitor
+- `flushUptime` - Forzar flush de buffer de logs
+
+## Stack Tecnológico
+
+| Componente | Tecnología |
+|------------|------------|
+| Framework | Next.js 16.1 (App Router) |
+| UI Library | React 19.2 |
+| Lenguaje | TypeScript 5.x |
+| State Management | Zustand + TanStack Query |
+| Forms | React Hook Form |
+| Validation | Zod |
+| Authentication | AWS Amplify (Cognito) |
+| HTTP Client | Axios |
+| Styling | SCSS Modules + PostCSS |
+| Testing | Vitest + Happy DOM |
+| Icons | React Icons |
+
+## Desarrollo y pruebas
+
+1. Configurar `.env.local` con las variables necesarias
+2. Iniciar el backend (debe estar corriendo en puerto 4000):
+
+```bash
+# Desde la raíz del monorepo
+cd apps/backend-uptime
+npm run start:dev
+```
+
+3. Ejecutar la aplicación en modo desarrollo:
 
 ```bash
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
+La aplicación estará disponible en `http://localhost:3000`
 
-### 3. Construir para producción
+### Tests
 
 ```bash
-npm run build
-npm run start
+# Ejecutar todos los tests
+npm run test
+
+# Ejecutar con UI
+npm run test:ui
+
+# Ejecutar con cobertura
+npm run test:coverage
 ```
 
-## Scripts Disponibles
+**Configuración de Vitest:**
+- Environment: `happy-dom`
+- Coverage provider: `v8`
+- Aliases: `@` → root, `@workspace/types` → backend DTOs
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Inicia servidor de desarrollo |
-| `npm run build` | Compila para producción |
-| `npm run start` | Inicia servidor de producción |
-| `npm run lint` | Ejecuta ESLint |
+## Ejemplos de uso
 
-## Arquitectura
-
-### App Router
-
-Este proyecto usa el **App Router** de Next.js (directorio `app/`):
-
-- **Server Components**: Por defecto, sin `'use client'`
-- **Client Components**: Agregar `'use client'` para interactividad
-- **Route Groups**: Usar paréntesis `(auth)`, `(dashboard)` para layouts compartidos
-- **Data Fetching**: `fetch()` con cache configurable
-
-### Tailwind CSS 4
-
-Nueva sintaxis con `@import "tailwindcss"`:
-
-```css
-/* app/globals.css */
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-```
-
-### Dark Mode
-
-Soporte automático via `prefers-color-scheme`:
-
-```css
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-```
-
-## Próximos Pasos
-
-El proyecto está en etapa inicial. Próximas funcionalidades a implementar:
-
-1. **Autenticación**: Login con AWS Cognito
-2. **Dashboard**: Vista principal con lista de monitores
-3. **Monitores**: CRUD de monitors (crear, editar, eliminar)
-4. **Logs**: Visualización de ping logs históricos
-5. **Real-time**: WebSocket para actualizaciones en vivo
-6. **Charts**: Gráficos de uptime y response time
-
-## Conexión con Backend
-
-El backend NestJS corre en `http://localhost:4000` con endpoints bajo `/api/v1/`.
-
-Ejemplo de fetch:
+### Usar el hook de monitores
 
 ```typescript
-async function getMonitors() {
-  const res = await fetch('http://localhost:4000/api/v1/uptime', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+'use client';
+import useUptime from '@/presentation/hooks/useUptime.hook';
 
-  if (!res.ok) throw new Error('Failed to fetch');
-  return res.json();
+function MonitorsList() {
+  const { uptimes, createUptime, deleteUptime } = useUptime();
+
+  if (uptimes.isLoading) return <LoadingState />;
+  if (uptimes.isError) return <ErrorState />;
+
+  return (
+    <div>
+      {uptimes.data?.data.map(uptime => (
+        <CardUptime key={uptime.id} uptimes={uptime} />
+      ))}
+    </div>
+  );
 }
 ```
 
-## Deploy
+### Usar el servicio de autenticación
 
-### Vercel (Recomendado)
+```typescript
+'use client';
+import { authService } from '@/infraestructure/services';
+import { useAuthStore } from '@/lib/store/authStore';
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
+function LoginForm() {
+  const { setUser } = useAuthStore();
 
-### Docker
+  const handleLogin = async (email: string, password: string) => {
+    await authService.login({ email, password });
+    const user = await authService.getCurrentUser();
+    setUser(user, { /* tokens */ });
+  };
 
-```bash
-docker build -t server-check-web .
-docker run -p 3000:3000 server-check-web
+  return <form onSubmit={/* ... */}>...</form>;
+}
 ```
 
-## Recursos
+### Crear un monitor con validación
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Tailwind CSS 4 Docs](https://tailwindcss.com/docs)
-- [React 19 Docs](https://react.dev)
+```typescript
+'use client';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createUptimeSchema } from '@/infraestructure/models';
 
-## Autor
+function CreateMonitorForm() {
+  const { register, handleSubmit } = useForm({
+    resolver: zodResolver(createUptimeSchema)
+  });
 
-- **Lucas Cabral** - [GitHub](https://github.com/Lucascabral95)
+  const { createUptime } = useUptime();
+
+  const onSubmit = (data) => {
+    createUptime.mutate(data);
+  };
+
+  return <form onSubmit={handleSubmit(onSubmit)}>...</form>;
+}
+```
+
+## Seguridad y buenas prácticas implementadas
+
+- Autenticación con AWS Cognito mediante JWT
+- Tokens almacenados en Zustand con persistencia
+- Axios interceptor para inyección automática de tokens
+- Validación de formularios con Zod schemas
+- TypeScript estricto para type safety
+- Componentes testeables con Vitest + Happy DOM
+- Separación de capas (presentation/infrastructure/lib)
+- Custom hooks para lógica reutilizable
+- Manejo de errores centralizado
+- Rutas protegidas con layout de dashboard
+- Environment variables para configuración sensible
+
+## Testing
+
+### Estructura de tests
+
+```
+├── *.test.tsx              # Tests de componentes
+├── *.test.ts               # Tests de hooks y servicios
+└── vitest.config.ts        # Configuración de tests
+```
+
+**Componentes:** Tests con `@testing-library/react`
+**Hooks:** Tests con `@testing-library/react` y `@testing-library/user-event`
+**Servicios:** Tests unitarios directos
+
+**Coverage:**
+- Provider: v8
+- Reporters: text, json, html
+- Excludes: types, interfaces, models, configs
+
+## Observabilidad
+
+- **Console logs**: Para desarrollo en componentes y servicios
+- **TanStack Query DevTools**: Disponible en desarrollo
+- **React DevTools**: Para inspeccionar componentes y hooks
+- **Network tab**: Para monitorear llamadas a la API
+
+## Contribuir
+
+- Seguir las convenciones de commits (Conventional Commits)
+- Añadir pruebas para nueva lógica de negocio
+- Ejecutar `npm run lint` antes de commitear
+- Mantener la separación de capas (presentation/infrastructure/lib)
+- Documentar nuevos componentes en este README
+
+## Contacto
+
+- Autor del repositorio: Lucas Cabral — lucassimple@hotmail.com
 
 ---
 
-Parte del monorepo **Server Check App**.
+## Licencia
+
+UNLICENSED
