@@ -21,6 +21,7 @@
     "turbo": "^2.7.4"
   },
   "dependencies": {
+    "nodemailer": "^7.0.12",
     "react-hook-form": "^7.71.1"
   }
 }

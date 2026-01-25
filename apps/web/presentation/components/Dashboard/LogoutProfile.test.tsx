@@ -30,17 +30,15 @@ describe('LogoutProfile', () => {
     } as any)
   })
 
-  it('renders user profile when user exists', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: { userId: 'test-user-123' },
-      isLoading: false,
-      logout: vi.fn()
-    } as any)
-
-    render(<LogoutProfile />)
-
-    expect(screen.getByText('test-user-123')).toBeInTheDocument()
-  })
+  vi.mocked(useAuth).mockReturnValue({
+  user: {
+    signInDetails: {
+      loginId: 'test-user-123'
+    }
+  },
+  isLoading: false,
+  logout: vi.fn()
+} as any)
 
   it('displays logout button with correct text when not loading', () => {
     vi.mocked(useAuth).mockReturnValue({

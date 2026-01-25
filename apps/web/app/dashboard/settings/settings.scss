@@ -1,0 +1,313 @@
+// Variables
+$font-size-title: 2rem;
+$font-size-section: 1.25rem;
+$color-background: #131A25;
+$color-card: #15222C;
+$color-card-hover: #1a2b3a;
+$color-border: #2d3748;
+$color-text: #ffffff;
+$color-text-secondary: #a0aec0;
+$color-primary: #3BD671;
+$color-primary-hover: #22c55e;
+$color-danger: #ef4444;
+$color-danger-hover: #dc2626;
+
+.settings-dashboard {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-header {
+  margin-bottom: 24px;
+
+  h1 {
+    color: $color-text;
+    font-size: $font-size-title;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    word-break: break-word;
+  }
+
+  .settings-subtitle {
+    color: $color-text-secondary;
+    font-size: 0.95rem;
+    margin: 0;
+  }
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.settings-section {
+  background-color: $color-card;
+  border: 1px solid $color-border;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: rgba($color-primary, 0.3);
+  }
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid $color-border;
+  background-color: rgba(0, 0, 0, 0.2);
+
+  .settings-section-icon {
+    color: $color-primary;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  h2 {
+    color: $color-text;
+    font-size: $font-size-section;
+    font-weight: 600;
+    margin: 0;
+  }
+}
+
+.settings-section-content {
+  padding: 8px 0;
+}
+
+.settings-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid $color-border;
+  transition: background-color 0.2s ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background-color: $color-card-hover;
+  }
+
+  .settings-item-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    background-color: rgba($color-primary, 0.1);
+    border-radius: 8px;
+    color: $color-primary;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .settings-item-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .settings-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .settings-item-label {
+    color: $color-text;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .settings-item-value {
+    color: $color-primary;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    background-color: rgba($color-primary, 0.15);
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  .settings-item-description {
+    color: $color-text-secondary;
+    font-size: 0.85rem;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+// Logout Section
+.settings-logout {
+  border-color: rgba($color-danger, 0.3);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: rgba($color-danger, 0.5);
+    box-shadow: 0 0 0 1px rgba($color-danger, 0.1);
+  }
+}
+
+.settings-logout-header {
+  .logout-icon-header {
+    color: $color-danger;
+  }
+}
+
+.settings-logout-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .settings-logout-description {
+    color: $color-text-secondary;
+    font-size: 0.9rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+.settings-logout-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: rgba($color-danger, 0.15);
+  color: $color-danger;
+  border: 1px solid $color-danger;
+  border-radius: 10px;
+  padding: 14px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: fit-content;
+  align-self: flex-start;
+
+  .logout-button-icon {
+    font-size: 1.1rem;
+  }
+
+  &:hover:not(:disabled) {
+    background-color: $color-danger;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-header {
+    margin-bottom: 20px;
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    .settings-subtitle {
+      font-size: 0.875rem;
+    }
+  }
+
+  .settings-content {
+    gap: 16px;
+  }
+
+  .settings-section {
+    border-radius: 10px;
+  }
+
+  .settings-section-header {
+    padding: 14px 16px;
+
+    .settings-section-icon {
+      font-size: 1.1rem;
+    }
+
+    h2 {
+      font-size: 1.1rem;
+    }
+  }
+
+  .settings-item {
+    padding: 14px 16px;
+    gap: 12px;
+
+    .settings-item-icon {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      font-size: 1rem;
+    }
+
+    .settings-item-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .settings-item-label {
+      font-size: 0.9rem;
+    }
+
+    .settings-item-value {
+      font-size: 0.8rem;
+      padding: 3px 8px;
+    }
+
+    .settings-item-description {
+      font-size: 0.8rem;
+    }
+  }
+
+  .settings-logout-content {
+    padding: 16px;
+
+    .settings-logout-description {
+      font-size: 0.85rem;
+    }
+  }
+
+  .settings-logout-button {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .settings-header {
+    h1 {
+      font-size: 1.75rem;
+    }
+  }
+
+  .settings-section-header {
+    h2 {
+      font-size: 1.15rem;
+    }
+  }
+}
