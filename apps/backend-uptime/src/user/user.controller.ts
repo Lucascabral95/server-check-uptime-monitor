@@ -1,11 +1,30 @@
-import { Controller, Get, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { 
+  Controller,
+  Get,
+  Body,
+     Patch,
+      Param,
+       Delete,
+        UseGuards,
+         Request,
+         } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { DataUserGetDto, RequestUserDto, UpdateUserDto } from './dto';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { 
+  DataUserGetDto,
+   RequestUserDto,
+    UpdateUserDto,
+   } from './dto';
+import { 
+  ApiTags,
+   ApiBearerAuth,
+    ApiOperation,
+     ApiResponse,
+      ApiParam,
+     } from '@nestjs/swagger';
 
 @ApiTags("Users")
 @ApiBearerAuth("jwt-auth")
@@ -31,7 +50,9 @@ export class UserController {
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   findOne(@Param('id') id: string, @Request() req: RequestUserDto) {
-  
+
+    console.log(req.user);
+
     return this.userService.findOne(id, req.user.dbUserId);
   }
   

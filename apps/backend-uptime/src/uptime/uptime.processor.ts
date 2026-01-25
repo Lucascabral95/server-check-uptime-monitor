@@ -6,6 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { Logger } from '@nestjs/common';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
 import { HttpPoolService } from './services/http-pool.service';
+import { EmailService } from 'src/email/email.service';
 
 @Processor(QUEUES_NAME.UPTIME_MONITOR)
 export class UptimeProcessor extends WorkerHost {
@@ -15,6 +16,7 @@ export class UptimeProcessor extends WorkerHost {
         private readonly prisma: PrismaService,
         private readonly pingLogBufferService: PingLogBufferService,
         private readonly httpPoolService: HttpPoolService,
+        private readonly emailService: EmailService,
         @InjectQueue(QUEUES_NAME.UPTIME_MONITOR_DLQ) private readonly dlq: Queue,
     ) {
         super();
@@ -46,6 +48,12 @@ export class UptimeProcessor extends WorkerHost {
                     url: true,
                     frequency: true,
                     isActive: true,
+                    status: true,
+                    user: {
+                        select: {
+                            email: true,
+                        },
+                    },
                 },
             });
 
@@ -63,6 +71,10 @@ export class UptimeProcessor extends WorkerHost {
             // 2. Ejecutar el check HTTP usando el pool de conexiones
             const result = await this.httpPoolService.checkUrl(monitor.url, 10000);
 
+            // Guardar el estado anterior antes del update
+            const previousStatus = monitor.status;
+            const newStatus = result.success ? 'UP' : 'DOWN';
+
             // 3. Agregar al buffer de PingLogs (se escribirán en lote después)
             this.pingLogBufferService.add({
                 monitorId: monitor.id,
@@ -77,10 +89,32 @@ export class UptimeProcessor extends WorkerHost {
             await this.prisma.monitor.update({
                 where: { id: monitor.id },
                 data: {
-                    status: result.success ? 'UP' : 'DOWN',
+                    status: newStatus,
                     lastCheck: now,
                 },
             });
+
+            // 5. Enviar email si el estado cambió (UP↔DOWN) y no es el primer log (PENDING→UP/DOWN)
+            const shouldSendEmail =
+                (previousStatus === 'UP' || previousStatus === 'DOWN') &&
+                previousStatus !== newStatus;
+
+            if (shouldSendEmail) {
+                try {
+                    await this.emailService.sendNotificationEmail(
+                        monitor.user.email,
+                        monitor.name,
+                        newStatus,
+                    );
+                    this.logger.log(
+                        `Email enviado: ${monitor.name} cambió de ${previousStatus} a ${newStatus}`,
+                    );
+                } catch (emailError) {
+                    this.logger.error(
+                        `Error enviando email para ${monitor.name}: ${emailError.message}`,
+                    );
+                }
+            }
 
             this.logger.log(
                 `Monitor ${monitor.name} checked: ${result.success ? 'UP' : 'DOWN'} (${result.durationMs}ms)`,

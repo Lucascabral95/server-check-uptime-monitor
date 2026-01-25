@@ -9,18 +9,27 @@ import { UserService } from 'src/user/user.service';
 import { PingLogModule } from 'src/ping-log/ping-log.module';
 import { HttpPoolService } from './services/http-pool.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
+import { EmailService } from 'src/email/email.service';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
-    imports: [BullmqModule, PrismaModule, JwtModuleModule, PingLogModule],
+    imports: [
+      BullmqModule,
+      PrismaModule,
+      JwtModuleModule,
+      PingLogModule,
+      EmailModule,
+      ],
     controllers: [UptimeController],
     providers: [
       UptimeService,
-       UptimeProcessor,
-        UserService,
-         HttpPoolService,
-        HttpPoolService, 
-        PingLogBufferService, 
-        ],
-        exports: [HttpPoolService],
+      UptimeProcessor,
+      UserService,
+      HttpPoolService,
+      HttpPoolService, 
+      PingLogBufferService,
+      EmailService,
+      ],
+    exports: [HttpPoolService],
 })
 export class UptimeModule {}

@@ -16,6 +16,13 @@ interface EnvsSchemaInterface {
   REDIS_HOST: string;
   REDIS_PORT: number;
   REDIS_PASSWORD: string;
+  AWS_REGION: string;
+  AWS_ACCESS_KEY_ID: string;
+  AWS_SECRET_ACCESS_KEY: string;
+  AWS_SES_FROM_EMAIL: string;
+  GMAIL_APP_USER: string;
+  GMAIL_APP_PASSWORD: string;
+  SEND_EMAIL_NODEMAILER_SES: string;
 }
 
 const envsSchema = joi.object<EnvsSchemaInterface>({
@@ -32,6 +39,13 @@ const envsSchema = joi.object<EnvsSchemaInterface>({
   REDIS_HOST: joi.string().required(),
   REDIS_PORT: joi.number().default(6379),
   REDIS_PASSWORD: joi.string().required(),
+  AWS_REGION: joi.string().required(),
+  AWS_ACCESS_KEY_ID: joi.string().required(),
+  AWS_SECRET_ACCESS_KEY: joi.string().required(),
+  AWS_SES_FROM_EMAIL: joi.string().required(),
+  GMAIL_APP_USER: joi.string().required(),
+  GMAIL_APP_PASSWORD: joi.string().required(),
+  SEND_EMAIL_NODEMAILER_SES: joi.string().required(),
 }).unknown(true);  
 
 const { error, value: vars } = envsSchema.validate(process.env);
@@ -55,4 +69,11 @@ export const envs = {
   redis_host: vars.REDIS_HOST,
   redis_port: vars.REDIS_PORT,
   redis_password: vars.REDIS_PASSWORD,
+  aws_region: vars.AWS_REGION,
+  aws_access_key_id: vars.AWS_ACCESS_KEY_ID,
+  aws_secret_access_key: vars.AWS_SECRET_ACCESS_KEY,
+  aws_ses_from_email: vars.AWS_SES_FROM_EMAIL,
+  gmail_app_user: vars.GMAIL_APP_USER,
+  gmail_app_password: vars.GMAIL_APP_PASSWORD,
+  send_email_nodemailer_ses: vars.SEND_EMAIL_NODEMAILER_SES,
 };

@@ -10,6 +10,7 @@ import { BullmqModule } from './bullmq/bullmq.module';
 import { BullModule } from '@nestjs/bullmq';
 import { envs } from './config/envs.schema';
 import { JwtModuleModule } from './jwt-module/jwt-module.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
     imports: [
@@ -28,6 +29,7 @@ import { JwtModuleModule } from './jwt-module/jwt-module.module';
         PingLogModule,
         BullmqModule,
         JwtModuleModule,
+        EmailModule,
     ],
     controllers: [AppController],
     providers: [AppService],

@@ -16,7 +16,7 @@ const LogoutProfile = () => {
   return (
     <div className='button-logout-profile-user'>
         <div className='profile-user'>
-              <p> {user?.userId} </p>
+              <p> {user?.signInDetails?.loginId || "Usuario no disponible"} </p>
         </div>
 
       <button

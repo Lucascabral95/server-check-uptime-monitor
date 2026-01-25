@@ -1,6 +1,29 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import { 
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
 import { UptimeService } from './uptime.service';
-import { CreateUptimeDto, UpdateUptimeDto, PaginationUptimeDto, GetUptimeDto, SortBy, GetStatsUserDto, GetStatsLogsByUptimeIdDto, GetIncidentsDto, GetIncidentsByUserIdDto, PaginationIncidentsDto, IncidentSortBy } from './dto';
+import { 
+  CreateUptimeDto,
+  UpdateUptimeDto,
+  PaginationUptimeDto,
+  GetUptimeDto, 
+  SortBy,
+  GetStatsUserDto,
+  GetStatsLogsByUptimeIdDto,
+  GetIncidentsDto,
+  GetIncidentsByUserIdDto,
+  PaginationIncidentsDto,
+  IncidentSortBy,
+} from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
@@ -8,7 +31,15 @@ import { Role, Status } from '@prisma/client';
 import { RequestUserDto } from 'src/user/dto';
 import { HttpPoolService } from './services/http-pool.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { 
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { EmailService } from 'src/email/email.service';
 
 @ApiTags('Uptime')
 @ApiBearerAuth('jwt-auth')
@@ -18,6 +49,7 @@ export class UptimeController {
     private readonly uptimeService: UptimeService,
     private readonly httpPoolService: HttpPoolService,
     private readonly pingLogBufferService: PingLogBufferService,
+    private readonly emailService: EmailService,
   ) {}
   
   @Post()
