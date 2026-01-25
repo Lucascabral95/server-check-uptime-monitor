@@ -67,7 +67,7 @@ const useUptime = (id?: string, params?: PaginationParams) => {
 
     const incidentsByUser = useQuery<GetIncidentsByUserIdInterface>({
         queryKey: ["getIncidentsByUserId", params],
-        queryFn: () => getIncidentsByUser({ search: params?.search, sortBy: params?.sortBy }),
+        queryFn: () => getIncidentsByUser({ search: params?.search, sortBy: params?.sortBy as string }),
         placeholderData: (previousData) => previousData,
     });
 
