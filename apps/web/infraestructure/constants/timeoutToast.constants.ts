@@ -1,0 +1,1 @@
+export const TIMEOUT_TOAST = 2200;

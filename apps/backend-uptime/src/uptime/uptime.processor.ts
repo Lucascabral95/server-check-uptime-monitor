@@ -38,9 +38,10 @@ export class UptimeProcessor extends WorkerHost {
 
         this.logger.debug(`Processing check for monitor: ${monitorId}`);
 
+        // 1. Obtener información del monitor desde la DB
+        let monitor;
         try {
-            // 1. Obtener información del monitor desde la DB
-            const monitor = await this.prisma.monitor.findUnique({
+            monitor = await this.prisma.monitor.findUnique({
                 where: { id: monitorId },
                 select: {
                     id: true,
@@ -56,75 +57,36 @@ export class UptimeProcessor extends WorkerHost {
                     },
                 },
             });
-
-            if (!monitor) {
-                this.logger.warn(`Monitor not found: ${monitorId}`);
-                return;
+        } catch (error) {
+            this.logger.error(`Error fetching monitor ${monitorId}: ${error.message}`);
+            if (job.attemptsMade >= (job.opts.attempts || 3)) {
+                await this.moveToDLQ(job, error);
             }
+            throw error;
+        }
 
-            // Si el monitor está inactivo, skip
-            if (!monitor.isActive) {
-                this.logger.debug(`Monitor is inactive: ${monitorId}`);
-                return;
-            }
+        if (!monitor) {
+            this.logger.warn(`Monitor not found: ${monitorId}`);
+            return;
+        }
 
-            // 2. Ejecutar el check HTTP usando el pool de conexiones
-            const result = await this.httpPoolService.checkUrl(monitor.url, 10000);
+        // Si el monitor está inactivo, skip - NO crear logs
+        if (!monitor.isActive) {
+            this.logger.debug(`Monitor is inactive: ${monitorId}, skipping check and log creation`);
+            return;
+        }
 
-            // Guardar el estado anterior antes del update
-            const previousStatus = monitor.status;
-            const newStatus = result.success ? 'UP' : 'DOWN';
-
-            // 3. Agregar al buffer de PingLogs (se escribirán en lote después)
-            this.pingLogBufferService.add({
-                monitorId: monitor.id,
-                statusCode: result.statusCode,
-                durationMs: result.durationMs,
-                success: result.success,
-                error: result.error,
-            });
-
-            // 4. Actualizar estado del monitor
-            const now = new Date();
-            await this.prisma.monitor.update({
-                where: { id: monitor.id },
-                data: {
-                    status: newStatus,
-                    lastCheck: now,
-                },
-            });
-
-            // 5. Enviar email si el estado cambió (UP↔DOWN) y no es el primer log (PENDING→UP/DOWN)
-            const shouldSendEmail =
-                (previousStatus === 'UP' || previousStatus === 'DOWN') &&
-                previousStatus !== newStatus;
-
-            if (shouldSendEmail) {
-                try {
-                    await this.emailService.sendNotificationEmail(
-                        monitor.user.email,
-                        monitor.name,
-                        newStatus,
-                    );
-                    this.logger.log(
-                        `Email enviado: ${monitor.name} cambió de ${previousStatus} a ${newStatus}`,
-                    );
-                } catch (emailError) {
-                    this.logger.error(
-                        `Error enviando email para ${monitor.name}: ${emailError.message}`,
-                    );
-                }
-            }
-
-            this.logger.log(
-                `Monitor ${monitor.name} checked: ${result.success ? 'UP' : 'DOWN'} (${result.durationMs}ms)`,
-            );
+        // 2. Ejecutar el check HTTP usando el pool de conexiones
+        let result;
+        try {
+            result = await this.httpPoolService.checkUrl(monitor.url, 10000);
         } catch (error) {
             this.logger.error(
-                `Error processing monitor ${monitorId}: ${error.message}`,
+                `Error checking monitor ${monitorId}: ${error.message}`,
                 error.stack,
             );
 
+            // Solo crear log de error si el monitor está activo (ya verificamos arriba)
             this.pingLogBufferService.add({
                 monitorId,
                 statusCode: 0,
@@ -139,6 +101,55 @@ export class UptimeProcessor extends WorkerHost {
 
             throw error;
         }
+
+        // Guardar el estado anterior antes del update
+        const previousStatus = monitor.status;
+        const newStatus = result.success ? 'UP' : 'DOWN';
+
+        // 3. Agregar al buffer de PingLogs (se escribirán en lote después)
+        this.pingLogBufferService.add({
+            monitorId: monitor.id,
+            statusCode: result.statusCode,
+            durationMs: result.durationMs,
+            success: result.success,
+            error: result.error,
+        });
+
+        // 4. Actualizar estado del monitor
+        const now = new Date();
+        await this.prisma.monitor.update({
+            where: { id: monitor.id },
+            data: {
+                status: newStatus,
+                lastCheck: now,
+            },
+        });
+
+        // 5. Enviar email si el estado cambió (UP↔DOWN) y no es el primer log (PENDING→UP/DOWN)
+        const shouldSendEmail =
+            (previousStatus === 'UP' || previousStatus === 'DOWN') &&
+            previousStatus !== newStatus;
+
+        if (shouldSendEmail) {
+            try {
+                await this.emailService.sendNotificationEmail(
+                    monitor.user.email,
+                    monitor.name,
+                    newStatus,
+                );
+                this.logger.log(
+                    `Email enviado: ${monitor.name} cambió de ${previousStatus} a ${newStatus}`,
+                );
+            } catch (emailError) {
+                this.logger.error(
+                    `Error enviando email para ${monitor.name}: ${emailError.message}`,
+                );
+            }
+        }
+
+        this.logger.log(
+            `Monitor ${monitor.name} checked: ${result.success ? 'UP' : 'DOWN'} (${result.durationMs}ms)`,
+        );
     }
 
     // Mueve un job fallido a la Dead Letter Queue para retries extendidos.

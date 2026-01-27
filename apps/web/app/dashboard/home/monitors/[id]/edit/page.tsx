@@ -13,13 +13,12 @@ import {
   IconHttp,
   IconLock,
   INTERVAL_OPTIONS,
+  TIMEOUT_TOAST,
 } from '@/infraestructure/constants';
 
 import useUpdateMonitor from '@/presentation/hooks/useUpdateMonitor.hook';
 import Toast from '@/presentation/components/shared/Toasts/Toast';
 import './MonitorsEdit.scss';
-
-const TIMEOUT_TOAST = 3000;
 
 const EditMonitorPage = () => {
   const router = useRouter();
@@ -33,6 +32,8 @@ const EditMonitorPage = () => {
     currentFrequency,
     notify,
     setNotify,
+    isActive,
+    setIsActive,
     uptimeById,
     updateUptime,
     submitUpdate,
@@ -133,6 +134,27 @@ const EditMonitorPage = () => {
             value={url}
             readOnly
           />
+        </div>
+
+        <div className="divider" />
+
+        <div className="form-section">
+          <div className="status-toggle-container">
+            <div className="status-toggle-content">
+              <label className="section-label mb-0">Estado del monitor</label>
+              <p className="status-toggle-desc">
+                {isActive ? 'El monitor está activo y realizará comprobaciones' : 'El monitor está pausado y no realizará comprobaciones'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`status-toggle-switch ${isActive ? 'active' : ''}`}
+              onClick={() => setIsActive(!isActive)}
+              aria-label={isActive ? 'Desactivar monitor' : 'Activar monitor'}
+            >
+              <span className="toggle-slider" />
+            </button>
+          </div>
         </div>
 
         <div className="grid-2-col">

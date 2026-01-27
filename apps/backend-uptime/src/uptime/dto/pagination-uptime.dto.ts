@@ -1,7 +1,14 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Status } from "@prisma/client";
 import { Type } from "class-transformer";
-import { IsEnum, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { 
+  IsBoolean,
+  IsEnum, 
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from "class-validator";
 
 export enum SortBy {
   RECENT = 'recent',
@@ -53,6 +60,15 @@ export class PaginationUptimeDto {
     @IsOptional()
     @IsString()
     search?: string;
+
+    @ApiPropertyOptional({
+      description: 'Incluir monitores inactivos (isActive: false). Por defecto solo muestra activos.',
+      example: false
+    })
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    includeInactive?: boolean;
 }
 
 export class PaginatedResponseDto<T> {

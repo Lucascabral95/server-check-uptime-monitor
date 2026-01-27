@@ -9,6 +9,7 @@ import { IconChevron,
    IconLock,
     IconRefresh,
      INTERVAL_OPTIONS,
+     TIMEOUT_TOAST,
      } from '@/infraestructure/constants';
 import useNewMonitor from '@/presentation/hooks/useNewMonitor.hook';
 import useUptime from '@/presentation/hooks/useUptime.hook';
@@ -16,8 +17,6 @@ import { createUptimeSchema } from '@/infraestructure/models';
 import Toast from '@/presentation/components/shared/Toasts/Toast';
 import './MonitorNewHttp.scss';
 import { useRouter } from 'next/navigation';
-
-const TIMEOUT_TOAST = 3000;
 
 const MonitorsNewHttp = () => {
   const router = useRouter();

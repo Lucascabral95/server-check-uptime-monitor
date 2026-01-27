@@ -67,6 +67,7 @@ export class UptimeController {
   @ApiQuery({ name: 'userId', required: false, type: String })
   @ApiQuery({ name: 'status', required: false, enum: Status })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por nombre o URL' })
+  @ApiQuery({ name: 'includeInactive', required: false, type: Boolean, description: 'Incluir monitores inactivos (isActive: false). Por defecto false.' })
   @ApiQuery({
     name: 'sortBy',
     required: false,

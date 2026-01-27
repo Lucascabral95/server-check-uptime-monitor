@@ -1,38 +1,36 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UptimeController } from './uptime.controller';
 import { UptimeService } from './uptime.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { getQueueToken } from '@nestjs/bullmq';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { HttpPoolService } from './services/http-pool.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
-import { PaginationUptimeDto } from './dto/pagination-uptime.dto';
-import { Role, Status } from '@prisma/client';
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { EmailService } from 'src/email/email.service';
+import {
+  NotFoundException,
+  UnauthorizedException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { Role, Status } from '@prisma/client';
+import {
+  SortBy,
+  IncidentSortBy,
+} from './dto';
 
 describe('UptimeController', () => {
   let controller: UptimeController;
-  let service: UptimeService;
+  let service: jest.Mocked<UptimeService>;
 
-  const mockPrismaService = {
-    monitor: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      count: jest.fn(),
-    },
-    user: {
-      findUnique: jest.fn(),
-    },
-  };
-
-  const mockQueue = {
-    add: jest.fn(),
+  const mockUptimeService = {
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
     remove: jest.fn(),
+    getStatsByUserId: jest.fn(),
+    findStatsLogsByUptimeId: jest.fn(),
+    getIncidents: jest.fn(),
+    getIncidentsByUserId: jest.fn(),
   };
 
   const mockHttpPoolService = {
@@ -51,31 +49,21 @@ describe('UptimeController', () => {
     sendIncidentAlert: jest.fn(),
   };
 
+  const mockRequest = {
+    user: {
+      dbUserId: 'user-123',
+      role: Role.ADMIN,
+    },
+  } as any;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UptimeController],
       providers: [
-        UptimeService,
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
-        },
-        {
-          provide: getQueueToken('uptime-monitor'),
-          useValue: mockQueue,
-        },
-        {
-          provide: HttpPoolService,
-          useValue: mockHttpPoolService,
-        },
-        {
-          provide: PingLogBufferService,
-          useValue: mockPingLogBufferService,
-        },
-        {
-          provide: EmailService,
-          useValue: mockEmailService,
-        },
+        { provide: UptimeService, useValue: mockUptimeService },
+        { provide: HttpPoolService, useValue: mockHttpPoolService },
+        { provide: PingLogBufferService, useValue: mockPingLogBufferService },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -85,7 +73,7 @@ describe('UptimeController', () => {
       .compile();
 
     controller = module.get<UptimeController>(UptimeController);
-    service = module.get<UptimeService>(UptimeService);
+    service = module.get(UptimeService);
 
     jest.clearAllMocks();
   });
@@ -94,173 +82,219 @@ describe('UptimeController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('findAll', () => {
-    it('should return paginated monitors with default values', async () => {
-      const monitors = [
-        { id: '1', name: 'Monitor 1', url: 'https://example.com' },
-        { id: '2', name: 'Monitor 2', url: 'https://test.com' },
-      ];
+  describe('create', () => {
+    it('should create a monitor', async () => {
+      const dto = { name: 'Test', url: 'https://test.com', frequency: 60 };
+      const resultMock = { id: 'uptime-1', ...dto };
 
-      mockPrismaService.monitor.findMany.mockResolvedValue(monitors);
-      mockPrismaService.monitor.count.mockResolvedValue(2);
+      service.create.mockResolvedValue(resultMock as any);
 
-      const result = await controller.findAll({});
+      const result = await controller.create(dto as any, mockRequest);
 
-      expect(result).toEqual({
-        data: monitors,
-        pagination: {
-          currentPage: 1,
-          totalPages: 1,
-          nextPage: null,
-          prevPage: null,
-          totalItems: 2,
-          itemsPerPage: 10,
-        },
-      });
+      expect(service.create).toHaveBeenCalledWith(dto, 'user-123');
+      expect(result).toEqual(resultMock);
     });
 
-    it('should return empty array when no monitors found', async () => {
-      mockPrismaService.monitor.findMany.mockResolvedValue([]);
-      mockPrismaService.monitor.count.mockResolvedValue(0);
+    it('should propagate errors', async () => {
+      service.create.mockRejectedValue(new InternalServerErrorException());
 
-      const result = await controller.findAll({});
-
-      expect(result.data).toEqual([]);
-      expect(result.pagination.totalItems).toBe(0);
-      expect(result.pagination.totalPages).toBe(0);
+      await expect(
+        controller.create({} as any, mockRequest),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
-  describe('create', () => {
-    it('should create a new monitor', async () => {
-      const createDto = {
-        name: 'Test Monitor',
-        url: 'https://example.com',
-        frequency: 60,
+  describe('findAll', () => {
+    it('should return paginated monitors', async () => {
+      const pagination = {
+        page: 1,
+        limit: 10,
+        status: Status.UP,
+        sortBy: SortBy.RECENT,
       };
 
-      const createdMonitor = {
-        id: 'monitor-1',
-        ...createDto,
-        isActive: true,
-        nextCheck: new Date(),
-        createdAt: new Date(),
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-123' });
-      mockPrismaService.monitor.create.mockResolvedValue(createdMonitor);
-      mockQueue.add.mockResolvedValue({ id: 'job-1' });
-
-      const mockRequest = {
-        user: {
-          dbUserId: 'user-123',
-          role: Role.USER,
+      const responseMock = {
+        data: [{ id: '1', name: 'Monitor' }],
+        pagination: {
+          totalItems: 1,
+          totalPages: 1,
+          currentPage: 1,
+          itemsPerPage: 10,
         },
-      } as any;
+      };
 
-      const result = await controller.create(createDto as any, mockRequest);
+      service.findAll.mockResolvedValue(responseMock as any);
 
-      expect(result).toEqual(createdMonitor);
+      const result = await controller.findAll(pagination as any);
+
+      expect(service.findAll).toHaveBeenCalledWith(pagination);
+      expect(result).toEqual(responseMock);
     });
   });
 
   describe('findOne', () => {
-    it('should return a single monitor by id', async () => {
-      const monitor = {
-        id: 'monitor-1',
-        userId: 'user-123',
-        name: 'Test Monitor',
-      };
+    it('should return monitor by id', async () => {
+      const monitor = { id: 'uptime-1', name: 'Test' };
 
-      mockPrismaService.monitor.findUnique
-        .mockResolvedValueOnce({ id: 'monitor-1', userId: 'user-123' })
-        .mockResolvedValueOnce(monitor);
+      service.findOne.mockResolvedValue(monitor as any);
 
-      const mockRequest = {
-        user: { dbUserId: 'user-123' },
-      } as any;
+      const result = await controller.findOne('uptime-1', mockRequest);
 
-      const result = await controller.findOne('monitor-1', mockRequest);
-
+      expect(service.findOne).toHaveBeenCalledWith('uptime-1', 'user-123');
       expect(result).toEqual(monitor);
     });
 
-    it('should throw NotFoundException when monitor not found', async () => {
-      mockPrismaService.monitor.findUnique.mockResolvedValue(null);
-
-      const mockRequest = {
-        user: { dbUserId: 'user-123' },
-      } as any;
+    it('should throw NotFoundException', async () => {
+      service.findOne.mockRejectedValue(new NotFoundException());
 
       await expect(
-        controller.findOne('non-existent', mockRequest),
+        controller.findOne('invalid-id', mockRequest),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw UnauthorizedException when user is not the owner', async () => {
-      mockPrismaService.monitor.findUnique.mockResolvedValue({
-        id: 'monitor-1',
-        userId: 'other-user',
-      });
-
-      const mockRequest = {
-        user: { dbUserId: 'user-123' },
-      } as any;
+    it('should throw UnauthorizedException', async () => {
+      service.findOne.mockRejectedValue(new UnauthorizedException());
 
       await expect(
-        controller.findOne('monitor-1', mockRequest),
+        controller.findOne('uptime-1', mockRequest),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('update', () => {
+    it('should update a monitor', async () => {
+      const dto = { name: 'Updated' };
+      const updated = { id: 'uptime-1', name: 'Updated' };
+
+      service.update.mockResolvedValue(updated as any);
+
+      const result = await controller.update(
+        'uptime-1',
+        dto as any,
+        mockRequest,
+      );
+
+      expect(service.update).toHaveBeenCalledWith(
+        'uptime-1',
+        dto,
+        'user-123',
+      );
+      expect(result).toEqual(updated);
     });
   });
 
   describe('remove', () => {
     it('should delete a monitor', async () => {
-      const monitor = {
-        id: 'monitor-1',
-        userId: 'user-123',
-      };
+      service.remove.mockResolvedValue({ message: 'deleted' } as any);
 
-      mockPrismaService.monitor.findUnique
-        .mockResolvedValueOnce(monitor)
-        .mockResolvedValueOnce(monitor);
+      const result = await controller.remove('uptime-1', mockRequest);
 
-      mockPrismaService.monitor.delete.mockResolvedValue(monitor);
-      mockQueue.remove.mockResolvedValue(undefined);
-
-      const mockRequest = {
-        user: { dbUserId: 'user-123' },
-      } as any;
-
-      const result = await controller.remove('monitor-1', mockRequest);
-
-      expect(result).toBe('Monitor deleted successfully');
+      expect(service.remove).toHaveBeenCalledWith('uptime-1', 'user-123');
+      expect(result).toEqual({ message: 'deleted' });
     });
   });
 
   describe('getStats', () => {
-    it('should return stats from services', () => {
-      mockHttpPoolService.getStats.mockReturnValue({ active: 1 });
+    it('should return internal system stats', () => {
+      mockHttpPoolService.getStats.mockReturnValue({ active: 2 });
+      mockHttpPoolService.getPoolInfo.mockReturnValue({ pools: 1 });
       mockPingLogBufferService.getStats.mockReturnValue({ size: 10 });
-      mockHttpPoolService.getPoolInfo.mockReturnValue({ pool: 'default' });
-      mockPingLogBufferService.getBufferUtilization.mockReturnValue(50);
+      mockPingLogBufferService.getBufferUtilization.mockReturnValue(75);
 
       const result = controller.getStats();
 
       expect(result).toEqual({
-        httpPool: { active: 1 },
+        httpPool: { active: 2 },
         buffer: { size: 10 },
-        pools: { pool: 'default' },
-        bufferUtilization: 50,
+        pools: { pools: 1 },
+        bufferUtilization: 75,
       });
     });
   });
 
+  describe('getStatsUser', () => {
+    it('should return stats by user', async () => {
+      const stats = { total: 5, up: 4, down: 1 };
+
+      service.getStatsByUserId.mockResolvedValue(stats as any);
+
+      const result = await controller.getStatsUser(mockRequest);
+
+      expect(service.getStatsByUserId).toHaveBeenCalledWith('user-123');
+      expect(result).toEqual(stats);
+    });
+  });
+
+  describe('findStatsLogsByUptimeId', () => {
+    it('should return logs for uptime', async () => {
+      const logs = { uptimeId: 'uptime-1', logs: [] };
+
+      service.findStatsLogsByUptimeId.mockResolvedValue(logs as any);
+
+      const result = await controller.findStatsLogsByUptimeId(
+        'uptime-1',
+        mockRequest,
+      );
+
+      expect(service.findStatsLogsByUptimeId).toHaveBeenCalledWith(
+        'uptime-1',
+        'user-123',
+      );
+      expect(result).toEqual(logs);
+    });
+  });
+
+  describe('getIncidents', () => {
+    it('should return incidents for a monitor', async () => {
+      const incidents = { data: [], total: 0 };
+
+      service.getIncidents.mockResolvedValue(incidents as any);
+
+      const result = await controller.getIncidents(
+        'uptime-1',
+        mockRequest,
+      );
+
+      expect(service.getIncidents).toHaveBeenCalledWith(
+        'uptime-1',
+        'user-123',
+      );
+      expect(result).toEqual(incidents);
+    });
+  });
+
+  describe('getIncidentsByUserId', () => {
+    it('should return user incidents with pagination', async () => {
+      const pagination = {
+        page: 1,
+        limit: 10,
+        sortBy: IncidentSortBy.RECENT,
+      };
+
+      const incidents = { data: [], pagination: {} };
+
+      service.getIncidentsByUserId.mockResolvedValue(incidents as any);
+
+      const result = await controller.getIncidentsByUserId(
+        mockRequest,
+        pagination as any,
+      );
+
+      expect(service.getIncidentsByUserId).toHaveBeenCalledWith(
+        'user-123',
+        pagination,
+      );
+      expect(result).toEqual(incidents);
+    });
+  });
+
   describe('forceFlush', () => {
-    it('should flush buffer', async () => {
+    it('should force flush buffer', async () => {
       mockPingLogBufferService.forceFlush.mockResolvedValue(undefined);
 
       const result = await controller.forceFlush();
 
+      expect(mockPingLogBufferService.forceFlush).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Buffer flushed successfully' });
     });
   });

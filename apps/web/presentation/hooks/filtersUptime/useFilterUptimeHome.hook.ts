@@ -35,6 +35,8 @@ export const useFilters = () => {
     search: debouncedSearch || undefined,
     status: (selectedStatus && selectedStatus !== "ALL") ? selectedStatus : undefined,
     sortBy: selectedSort || undefined,
+    limit: 1000,
+    includeInactive: true,
   }), [debouncedSearch, selectedStatus, selectedSort]);
 
   const handleSearchChange = useCallback((value: string) => {

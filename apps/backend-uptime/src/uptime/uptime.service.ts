@@ -15,15 +15,15 @@ import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
 import {
   GetStatsUserDto,
-   GetStatsLogsByUptimeIdDto,
-   HealthStatsDto,
-   GetUptimeDto,
-    GetIncidentsDto,
-     IncidentDto,
-      GetIncidentsByUserIdDto,
-       IncidentWithMonitorDto,
-        MonitorIncidentSummaryDto,
-       } from './dto';
+  GetStatsLogsByUptimeIdDto,
+  HealthStatsDto,
+  GetUptimeDto,
+  GetIncidentsDto,
+  IncidentDto,
+  GetIncidentsByUserIdDto,
+  IncidentWithMonitorDto,
+  MonitorIncidentSummaryDto,
+  } from './dto';
 
 @Injectable()
 export class UptimeService {
@@ -63,7 +63,6 @@ export class UptimeService {
                 },
             });
 
-            // ✅ NUEVO: Crear job INDIVIDUAL recurrente para este monitor
             await this.createMonitorJob(monitor.id, monitor.url, monitor.frequency);
 
             this.logger.log(`Monitor created: ${name} (next check at ${nextCheck})`);
@@ -83,7 +82,7 @@ export class UptimeService {
 
     async findAll(paginationDto: PaginationUptimeDto = {}): Promise<PaginatedResponseDto<any>> {
         try {
-            const { page = 1, limit = 10, userId, status, sortBy = SortBy.RECENT, search } = paginationDto;
+            const { page = 1, limit = 10, userId, status, sortBy = SortBy.RECENT, search, includeInactive = false } = paginationDto;
             const skip = (page - 1) * limit;
 
             const where: any = {};
@@ -94,6 +93,10 @@ export class UptimeService {
 
             if (status) {
                 where.status = status;
+            }
+
+            if (!includeInactive) {
+                where.isActive = true;
             }
 
             if (search) {
@@ -347,7 +350,7 @@ export class UptimeService {
         }
     }
 
-    /////  
+    ////
     async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
     try {
       const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -360,25 +363,26 @@ export class UptimeService {
         monitorsDownLast24h,
       ] = await Promise.all([
         this.prisma.monitor.count({
-          where: { userId },
+          where: { userId, isActive: true },
         }),
 
         this.prisma.monitor.count({
-          where: { userId, status: 'UP' },
+          where: { userId, status: 'UP', isActive: true },
         }),
 
         this.prisma.monitor.count({
-          where: { userId, status: 'DOWN' },
+          where: { userId, status: 'DOWN', isActive: true },
         }),
 
         this.prisma.monitor.count({
-          where: { userId, status: 'PENDING' },
+          where: { userId, status: 'PENDING', isActive: true },
         }),
 
         this.prisma.monitor.findMany({
           where: {
             userId,
             status: 'DOWN',
+            isActive: true,
             lastCheck: {
               gte: last24Hours,
             },
@@ -746,7 +750,7 @@ export class UptimeService {
       const { search, sortBy = IncidentSortBy.RECENT } = paginationDto || {};
 
       // Build the where clause for search
-      const monitorWhere: any = { userId };
+      const monitorWhere: any = { userId, isActive: true };
 
       if (search) {
         monitorWhere.OR = [

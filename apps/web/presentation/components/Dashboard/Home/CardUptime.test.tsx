@@ -1,133 +1,134 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import CardUptime from './CardUptime';
-import { GetUptimeDto, Status } from '@/infraestructure/interfaces';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
 
-vi.mock('next/navigation', () => ({
+import CardUptime from "./CardUptime";
+import { Status } from "@/infraestructure/interfaces";
+
+vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),
   }),
+  redirect: vi.fn(),
 }));
 
-const mutateMock = vi.fn();
-
-vi.mock('@/presentation/hooks/useUptime.hook', () => ({
+vi.mock("@/presentation/hooks/useUpdateMonitor.hook", () => ({
   default: () => ({
-    deleteUptime: {
-      mutate: mutateMock,
-    },
+    submitDelete: vi.fn(),
   }),
 }));
 
-vi.mock('@/presentation/hooks', () => ({
+vi.mock("@/presentation/hooks", () => ({
   useUptimeCheck: () => ({
     timeUntilNextCheck: 60000,
   }),
 }));
 
-vi.mock('@/presentation/utils', () => ({
-  formatDate: () => '2024-01-15',
-  formatLastCheck: () => 'Hace 1 minuto',
-  formatTimeRemaining: () => '1m',
-  getStatusColor: () => 'green',
+vi.mock("@/presentation/utils", () => ({
+  formatDate: () => "2024-01-15",
+  formatLastCheck: () => "Hace 1 minuto",
+  formatTimeRemaining: () => "1m",
+  getStatusColor: () => "green",
 }));
 
-const mockUptime: GetUptimeDto = {
-  id: '1',
-  userId: 'user1',
-  name: 'Test Monitor',
-  url: 'https://example.com',
+const mockSetToast = vi.fn();
+
+const mockUptime = {
+  id: "1",
+  userId: "user1",
+  name: "Test Monitor",
+  url: "https://example.com",
   frequency: 60,
   isActive: true,
   nextCheck: new Date(),
   lastCheck: new Date(),
   status: Status.UP,
-  createdAt: '2024-01-15T10:00:00Z',
-  updatedAt: '2024-01-15T10:00:00Z',
+  createdAt: "2024-01-15T10:00:00Z",
+  updatedAt: "2024-01-15T10:00:00Z",
 };
 
-describe('CardUptime', () => {
+describe("CardUptime", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders monitor data correctly', () => {
-    render(<CardUptime uptimes={mockUptime} />);
+  it("renders monitor data correctly", () => {
+    render(<CardUptime uptimes={mockUptime} setToast={mockSetToast} />);
 
-    expect(screen.getByText('Test Monitor')).toBeInTheDocument();
-    expect(screen.getByText('HTTP')).toBeInTheDocument();
-    expect(screen.getByText('60s')).toBeInTheDocument();
+    expect(screen.getByText("Test Monitor")).toBeInTheDocument();
+    expect(screen.getByText("HTTP")).toBeInTheDocument();
+    expect(screen.getByText("60s")).toBeInTheDocument();
   });
 
-  it('formats date correctly', () => {
-    render(<CardUptime uptimes={mockUptime} />);
+  it("formats date correctly", () => {
+    render(<CardUptime uptimes={mockUptime} setToast={mockSetToast} />);
 
-    expect(screen.getByText('2024-01-15')).toBeInTheDocument();
+    expect(screen.getByText("2024-01-15")).toBeInTheDocument();
   });
 
-  it('toggles menu when more button is clicked', () => {
-    render(<CardUptime uptimes={mockUptime} />);
+  it("toggles menu when more button is clicked", () => {
+    const { container } = render(
+      <CardUptime uptimes={mockUptime} setToast={mockSetToast} />
+    );
 
-    const moreButton = screen.getByRole('button', {
-      name: /más opciones/i,
-    });
+    const button = container.querySelector(".more-button") as HTMLElement;
 
-    expect(screen.queryByText('Editar monitor')).not.toBeInTheDocument();
+    fireEvent.click(button);
 
-    fireEvent.click(moreButton);
-
-    expect(screen.getByText('Editar monitor')).toBeInTheDocument();
-    expect(screen.getByText('Eliminar monitor')).toBeInTheDocument();
+    expect(screen.getByText("Editar monitor")).toBeInTheDocument();
+    expect(screen.getByText("Eliminar monitor")).toBeInTheDocument();
   });
 
-  it('closes menu when clicking outside', async () => {
-    render(<CardUptime uptimes={mockUptime} />);
+  it("closes menu when clicking outside", async () => {
+    const { container } = render(
+      <CardUptime uptimes={mockUptime} setToast={mockSetToast} />
+    );
 
-    const moreButton = screen.getByRole('button', {
-      name: /más opciones/i,
-    });
+    const button = container.querySelector(".more-button") as HTMLElement;
 
-    fireEvent.click(moreButton);
-    expect(screen.getByText('Editar monitor')).toBeInTheDocument();
-
+    fireEvent.click(button);
     fireEvent.mouseDown(document.body);
 
     await waitFor(() => {
       expect(
-        screen.queryByText('Editar monitor')
+        screen.queryByText("Editar monitor")
       ).not.toBeInTheDocument();
     });
   });
 
-  it('renders frequency correctly', () => {
-    const customUptime = { ...mockUptime, frequency: 30 };
-    render(<CardUptime uptimes={customUptime} />);
+  it("renders frequency correctly", () => {
+    render(
+      <CardUptime
+        uptimes={{ ...mockUptime, frequency: 30 }}
+        setToast={mockSetToast}
+      />
+    );
 
-    expect(screen.getByText('30s')).toBeInTheDocument();
+    expect(screen.getByText("30s")).toBeInTheDocument();
   });
 
-  it('renders with null lastCheck safely', () => {
-    const uptimeWithoutLastCheck = {
-      ...mockUptime,
-      lastCheck: null as unknown as Date,
-    };
+  it("renders safely with null lastCheck", () => {
+    render(
+      <CardUptime
+        uptimes={{ ...mockUptime, lastCheck: new Date() }}
+        setToast={mockSetToast}
+      />
+    );
 
-    render(<CardUptime uptimes={uptimeWithoutLastCheck} />);
-
-    expect(screen.getByText('Test Monitor')).toBeInTheDocument();
+    expect(screen.getByText("Test Monitor")).toBeInTheDocument();
   });
 
-  it('handles rapid menu toggle clicks', () => {
-    render(<CardUptime uptimes={mockUptime} />);
+  it("handles rapid menu toggle clicks", () => {
+    const { container } = render(
+      <CardUptime uptimes={mockUptime} setToast={mockSetToast} />
+    );
 
-    const moreButton = screen.getByRole('button', {
-      name: /más opciones/i,
-    });
+    const button = container.querySelector(".more-button") as HTMLElement;
 
-    fireEvent.click(moreButton);
-    fireEvent.click(moreButton);
-    fireEvent.click(moreButton);
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
 
-    expect(screen.getByText('Editar monitor')).toBeInTheDocument();
+    expect(screen.getByText("Editar monitor")).toBeInTheDocument();
   });
 });

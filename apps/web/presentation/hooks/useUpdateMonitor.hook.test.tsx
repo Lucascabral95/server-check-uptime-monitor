@@ -9,10 +9,6 @@ import useUptime from './useUptime.hook';
 import { INTERVAL_OPTIONS } from '@/infraestructure/constants';
 import { Status, GetUptimeDto } from '@/infraestructure/interfaces';
 
-/* ---------------------------------- */
-/* Mocks                              */
-/* ---------------------------------- */
-
 vi.mock('next/navigation', () => ({
   useParams: vi.fn(),
 }));
@@ -21,42 +17,57 @@ vi.mock('./useUptime.hook', () => ({
   default: vi.fn(),
 }));
 
-// Stateful mock data that tracks changes
 const mockState = {
   url: 'https://',
   name: '',
   intervalIndex: 1,
 };
 
-const mockSetUrl = (url: string) => { mockState.url = url; };
-const mockSetName = (name: string) => { mockState.name = name; };
-const mockSetIntervalIndex = (index: number) => { mockState.intervalIndex = index; };
+const mockSetUrl = vi.fn((url: string) => {
+  mockState.url = url;
+});
+
+const mockSetName = vi.fn((name: string) => {
+  mockState.name = name;
+});
+
+const mockSetIntervalIndex = vi.fn((index: number) => {
+  mockState.intervalIndex = index;
+});
 
 vi.mock('./useNewMonitor.hook', () => ({
   default: vi.fn(() => ({
-    get url() { return mockState.url; },
-    get name() { return mockState.name; },
-    get intervalIndex() { return mockState.intervalIndex; },
-    get progressPercent() { return (mockState.intervalIndex / 5) * 100; },
+    get url() {
+      return mockState.url;
+    },
+    get name() {
+      return mockState.name;
+    },
+    get intervalIndex() {
+      return mockState.intervalIndex;
+    },
+    get progressPercent() {
+      return (mockState.intervalIndex / 5) * 100;
+    },
     setUrl: mockSetUrl,
     setName: mockSetName,
     setIntervalIndex: mockSetIntervalIndex,
     currentFrequency: 60,
     notify: { email: true, sms: false, voice: false, push: false },
     setNotify: vi.fn(),
+    isActive: true,
+    setIsActive: vi.fn(),
   })),
 }));
 
 const mockUseParams = useParams as unknown as ReturnType<typeof vi.fn>;
 const mockUseUptime = useUptime as unknown as ReturnType<typeof vi.fn>;
 
-/* ---------------------------------- */
-/* Utils                              */
-/* ---------------------------------- */
-
 const createWrapper = (client: QueryClient) => {
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      {children}
+    </QueryClientProvider>
   );
 };
 
@@ -74,10 +85,6 @@ const mockMonitorData: GetUptimeDto = {
   updatedAt: new Date().toISOString(),
 };
 
-/* ---------------------------------- */
-/* Tests                              */
-/* ---------------------------------- */
-
 describe('useUpdateMonitor hook', () => {
   let queryClient: QueryClient;
 
@@ -89,7 +96,6 @@ describe('useUpdateMonitor hook', () => {
       },
     });
 
-    // Reset mock state
     mockState.url = 'https://';
     mockState.name = '';
     mockState.intervalIndex = 1;
@@ -110,6 +116,11 @@ describe('useUpdateMonitor hook', () => {
         isPending: false,
         isError: false,
       },
+      deleteUptime: {
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+      },
     });
   });
 
@@ -122,47 +133,54 @@ describe('useUpdateMonitor hook', () => {
     expect(result.current).toHaveProperty('name');
     expect(result.current).toHaveProperty('intervalIndex');
     expect(result.current).toHaveProperty('submitUpdate');
+    expect(result.current).toHaveProperty('submitDelete');
   });
 
   it('should populate form when uptime data loads', async () => {
-    const { result } = renderHook(() => useUpdateMonitor(), {
+    renderHook(() => useUpdateMonitor(), {
       wrapper: createWrapper(queryClient),
     });
 
     await waitFor(() => {
-      expect(result.current.name).toBeDefined();
+      expect(mockSetName).toHaveBeenCalledWith('Test Monitor');
+      expect(mockSetUrl).toHaveBeenCalledWith('https://test.com');
     });
   });
 
   it('should set interval index based on frequency', async () => {
-  const freq = INTERVAL_OPTIONS[2].seconds;
+    const freq = INTERVAL_OPTIONS[2].seconds;
 
-  mockUseUptime.mockReturnValue({
-    uptimeById: {
-      data: { ...mockMonitorData, frequency: freq },
-      isLoading: false,
-      isError: false,
-      isSuccess: true,
-    },
-    updateUptime: {
-      mutate: vi.fn(),
-      isPending: false,
-      isError: false,
-    },
-  });
+    mockUseUptime.mockReturnValue({
+      uptimeById: {
+        data: { ...mockMonitorData, frequency: freq },
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+      },
+      updateUptime: {
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+      },
+      deleteUptime: {
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+      },
+    });
 
-  renderHook(() => useUpdateMonitor(), {
-    wrapper: createWrapper(queryClient),
-  });
+    renderHook(() => useUpdateMonitor(), {
+      wrapper: createWrapper(queryClient),
+    });
 
-  await waitFor(() => {
     const expectedIndex = INTERVAL_OPTIONS.findIndex(
       i => i.seconds === freq
     );
 
-    expect(mockState.intervalIndex).toBe(expectedIndex);
+    await waitFor(() => {
+      expect(mockSetIntervalIndex).toHaveBeenCalledWith(expectedIndex);
+    });
   });
-});
 
   it('should not submit if id is missing', () => {
     mockUseParams.mockReturnValue({});
@@ -179,6 +197,12 @@ describe('useUpdateMonitor hook', () => {
       updateUptime: {
         mutate,
         isPending: false,
+        isError: false,
+      },
+      deleteUptime: {
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
       },
     });
 
@@ -205,6 +229,11 @@ describe('useUpdateMonitor hook', () => {
         mutate: vi.fn(),
         isPending: true,
         isError: true,
+      },
+      deleteUptime: {
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
       },
     });
 
