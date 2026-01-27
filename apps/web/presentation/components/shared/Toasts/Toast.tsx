@@ -1,10 +1,6 @@
-import "./Toast.scss";
+import { ToastProps } from "@/infraestructure/interfaces";
 
-interface ToastProps {
-  message: string;
-  type: "success" | "error" | "warning" | "info";
-  visible: boolean;
-}
+import "./Toast.scss";
 
 const Toast = ({ message, type, visible }: ToastProps) => {
   if (!visible) return null;

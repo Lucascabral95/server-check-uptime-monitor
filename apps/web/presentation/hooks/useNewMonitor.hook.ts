@@ -7,6 +7,7 @@ const useNewMonitor = () => {
   const [url, setUrl] = useState<string>("https://");
   const [name, setName] = useState<string>("");
     const [intervalIndex, setIntervalIndex] = useState<number>(1);
+    const [isActive, setIsActive] = useState<boolean>(true);
   
     const progressPercent = useMemo(() => {
       return (intervalIndex / (INTERVAL_OPTIONS.length - 1)) * 100;
@@ -42,6 +43,8 @@ const useNewMonitor = () => {
         currentFrequency,
         notify,
         setNotify,
+        isActive,
+        setIsActive,
     }
 }
 

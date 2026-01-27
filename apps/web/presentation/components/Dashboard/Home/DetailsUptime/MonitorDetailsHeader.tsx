@@ -10,8 +10,7 @@ import { GetStatsLogsByUptimeIdInterface, ToastInterface } from '@/infraestructu
 import useUptime from '@/presentation/hooks/useUptime.hook';
 import Toast from '@/presentation/components/shared/Toasts/Toast';
 import './MonitorDetailsHeader.scss';
-
-const TIMEOUT_TOAST = 2000;
+import { TIMEOUT_TOAST } from '@/infraestructure/constants';
 
 interface MonitorDetailsHeaderProps {
     monitor: GetStatsLogsByUptimeIdInterface;

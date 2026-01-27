@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 
 import { INTERVAL_OPTIONS } from '@/infraestructure/constants';
@@ -12,6 +12,10 @@ type SubmitOptions = {
   onSuccess?: () => void;
   onError?: () => void;
 };
+
+interface SubmitDeleteParams extends SubmitOptions {
+  id: string;
+}
 
 const useUpdateMonitor = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,15 +31,18 @@ const useUpdateMonitor = () => {
     currentFrequency,
     notify,
     setNotify,
+    isActive,
+    setIsActive,
   } = useNewMonitor();
 
-  const { uptimeById, updateUptime } = useUptime(id);
+  const { uptimeById, updateUptime, deleteUptime } = useUptime(id);
 
   useEffect(() => {
     if (!uptimeById.data) return;
 
     setName(uptimeById.data.name);
     setUrl(uptimeById.data.url);
+    setIsActive(uptimeById.data.isActive);
 
     const index = INTERVAL_OPTIONS.findIndex(
       i => i.seconds === uptimeById.data.frequency
@@ -52,7 +59,7 @@ const useUpdateMonitor = () => {
     const body: UpdateUptimeDto = {
       name,
       frequency: currentFrequency,
-      isActive: true,
+      isActive,
     };
 
     updateUptime.mutate(
@@ -63,6 +70,16 @@ const useUpdateMonitor = () => {
       }
     );
   };
+
+  const submitDelete = useCallback(
+  ({ id, onSuccess, onError }: SubmitDeleteParams) => {
+     deleteUptime.mutate(id, {
+      onSuccess,
+      onError,
+    });
+  },
+  [deleteUptime]
+);
 
   return {
     url,
@@ -75,10 +92,12 @@ const useUpdateMonitor = () => {
     currentFrequency,
     notify,
     setNotify,
-
+    isActive,
+    setIsActive,
     uptimeById,
     updateUptime,
     submitUpdate,
+    submitDelete,
   };
 };
 

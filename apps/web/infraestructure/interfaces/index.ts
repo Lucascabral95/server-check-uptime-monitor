@@ -12,3 +12,4 @@ export * from './toast.interface';
 export * from './get-stats-logs-by-uptime-id.interface';
 export * from './get-incidents.interface';
 export * from './get-incidents-by-user-id.interface';
+export * from './toastProps.inteface';

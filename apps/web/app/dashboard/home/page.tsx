@@ -1,5 +1,6 @@
-"use client"
+"use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FiPlus } from "react-icons/fi";
 
@@ -10,14 +11,22 @@ import ChartStats from "@/presentation/components/Dashboard/Home/ChartStats";
 import ChartStatsLastDay from "@/presentation/components/Dashboard/Home/ChartStatsLastDay";
 import ErrorState from "@/presentation/components/shared/states/ErrorState";
 import LoadingState from "@/presentation/components/shared/states/LoadingState";
+import Toast from "@/presentation/components/shared/Toasts/Toast";
 import { useFilters } from "@/presentation/hooks";
+import { ToastProps } from "@/infraestructure/interfaces";
 
-import "./dashboard-home.scss"
+import "./dashboard-home.scss";
 
 const ENDPOINT_ADD_MONITOR = "/dashboard/home/monitors/new/http";
 
 const DashboardHome = () => {
   const router = useRouter();
+
+  const [toast, setToast] = useState<ToastProps>({
+    visible: false,
+    message: "",
+    type: "success",
+  });
 
   const {
     searchValue,
@@ -32,11 +41,13 @@ const DashboardHome = () => {
 
   const { uptimes, myStats } = useUptime(undefined, filters);
 
-  function redirectToAddServer() {
+  const redirectToAddServer = () => {
     router.push(ENDPOINT_ADD_MONITOR);
-  }
+  };
 
-  const isInitialLoading = (uptimes.isLoading && !uptimes.data) || (myStats.isLoading && !myStats.data);
+  const isInitialLoading =
+    (uptimes.isLoading && !uptimes.data) ||
+    (myStats.isLoading && !myStats.data);
 
   if (isInitialLoading) {
     return <LoadingState message="Cargando monitoreos..." />;
@@ -59,8 +70,9 @@ const DashboardHome = () => {
     <div className="dashboard-home">
       <div className="title-button">
         <div className="title-home">
-          <h2> Monitoreo de servidores </h2>
+          <h2>Monitoreo de servidores</h2>
         </div>
+
         <div className="button-add-server">
           <button className="add-server" onClick={redirectToAddServer}>
             <FiPlus className="icon" />
@@ -68,9 +80,9 @@ const DashboardHome = () => {
           </button>
         </div>
       </div>
-      
+
       <div className="filter-current">
-        <FiltersMonitor 
+        <FiltersMonitor
           searchValue={searchValue}
           selectedStatus={selectedStatus}
           selectedSort={selectedSort}
@@ -78,7 +90,7 @@ const DashboardHome = () => {
           onStatusChange={handleStatusChange}
           onSortChange={handleSortChange}
           onClearSearch={clearSearch}
-          monitorCount={uptimes.data?.pagination?.totalItems} 
+          monitorCount={uptimes.data?.pagination?.totalItems}
         />
       </div>
 
@@ -92,15 +104,30 @@ const DashboardHome = () => {
       </div>
 
       <div className="all-uptimes">
-        {uptimes.isFetching && <div className="loading-overlay">Buscando...</div>}
+        {uptimes.isFetching && (
+          <div className="loading-overlay">Buscando...</div>
+        )}
+
         <div className="cards-grid">
-          {uptimes.data?.data?.map((uptime, index: number) => (
-            <CardUptime key={uptime.id || index} uptimes={uptime} />
+          {uptimes.data?.data?.map((uptime) => (
+            <CardUptime
+              key={uptime.id}
+              uptimes={uptime}
+              setToast={setToast}
+            />
           ))}
         </div>
       </div>
-    </div>
-  )
-}
 
-export default DashboardHome
+      {toast.visible && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          visible={toast.visible}
+        />
+      )}
+    </div>
+  );
+};
+
+export default DashboardHome;
