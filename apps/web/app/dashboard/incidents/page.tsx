@@ -1,63 +1,16 @@
-'use client';
+import { constructMetadata } from '@/lib/utils/seo';
+import IncidentsDashboardView from './IncidentsDashboardView'
 
-import IncidentsTable from "@/presentation/components/Dashboard/Home/Incidents/TableIncidents";
-import useFilteredIncidents from "@/presentation/hooks/useFilteredIncidents.hook";
-import LoadingState from "@/presentation/components/shared/states/LoadingState";
-import ErrorState from "@/presentation/components/shared/states/ErrorState";
-import FiltersIncidents from "@/presentation/components/Filters/FiltersMonitor/FiltersIncidents";
+export const metadata = constructMetadata({
+  title: "Historial de Incidentes",
+  description: "Registro detallado de todos los incidentes y caídas de servidores detectados.",
+  noIndex: true, 
+});
 
-import "./Incidents.scss"
-
-const IncidentsDashboard = () => {
-    const {
-      data,
-      isLoading,
-      isError,
-      refetch,
-      searchIncident,
-      selectedSort,
-      handleSearchChange,
-      handleSortChange,
-      onClearSearch,
-      } = useFilteredIncidents();
-
-  if (isLoading) {
-    return <LoadingState message="Cargando incidentes..." />;
-  }
-
-  if (isError) {
-    return (
-      <ErrorState
-        title="Error al obtener los incidentes"
-        description="No pudimos obtener los incidentes. Intentá nuevamente."
-        onRetry={() => {
-          refetch();
-        }}
-      />
-    );
-  }
-
+const IncidentsDashboardPage = () => {
   return (
-    <div className="incidents-dashboard">
-      <div className="title-incidents">
-        <h1>Incidentes</h1>
-      </div>
-
-      <div className="filter-current">
-        <FiltersIncidents
-          searchValue={searchIncident}
-          selectedSort={selectedSort}
-          onSearchChange={handleSearchChange}
-          onSortChange={handleSortChange}
-          onClearSearch={onClearSearch}
-          incidentCount={data?.incidents?.length}
-        />
-      </div>
-
-      <IncidentsTable data={data!} />
-
-    </div>
+    <IncidentsDashboardView />
   )
 }
 
-export default IncidentsDashboard;
+export default IncidentsDashboardPage;

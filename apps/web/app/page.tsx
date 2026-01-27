@@ -8,6 +8,12 @@ import { MetricsSection } from "@/presentation/components/Landing/MetricsSection
 import { CTASection } from "@/presentation/components/Landing/CTASection";
 
 import "./App.scss";
+import { constructMetadata } from "@/lib/utils/seo";
+
+export const metadata = constructMetadata({
+  title: "Monitoreo de Servidores en Tiempo Real",
+  description: "Detecta caídas al instante. Empieza gratis.",
+});
 
 export default function LandingPage() {
   return (

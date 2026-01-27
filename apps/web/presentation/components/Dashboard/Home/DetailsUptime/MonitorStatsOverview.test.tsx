@@ -2,9 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import MonitorStatsOverview from './MonitorStatsOverview'
 
-vi.mock('@/presentation/utils', () => ({
-  formatInterval: vi.fn(() => '5 minutos'),
-}))
+vi.mock('@/presentation/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/presentation/utils')>()
+  return {
+    ...actual,
+    formatInterval: vi.fn(() => '5 minutos'),
+    colorByPercentage: vi.fn(() => '#28a745'),
+  }
+})
 
 vi.mock('./MonitorStatsOverview.scss', () => ({}))
 
@@ -57,13 +62,7 @@ const baseMonitor = {
   },
 }
 
-const stats24hMock = [
-  true,
-  true,
-  false,
-  true,
-  false,
-]
+const stats24hMock = [true, true, false, true, false]
 
 describe('MonitorStatsOverview', () => {
   it('renders current status correctly', () => {
@@ -74,26 +73,24 @@ describe('MonitorStatsOverview', () => {
       />
     )
 
-    expect(screen.getByText('Estado actual')).toBeInTheDocument()
-    expect(screen.getByText('UP')).toBeInTheDocument()
-    expect(screen.getByText('Actualmente UP')).toBeInTheDocument()
+    expect(screen.getByText(/estado actual/i)).toBeInTheDocument()
+    expect(screen.getAllByText('UP').length).toBeGreaterThan(0)
+    expect(screen.getByText(/actualmente up/i)).toBeInTheDocument()
   })
 
   it('renders last check and interval', () => {
-  render(
-    <MonitorStatsOverview
-      monitor={baseMonitor as any}
-      stats24h={stats24hMock}
-    />
-  )
+    render(
+      <MonitorStatsOverview
+        monitor={baseMonitor as any}
+        stats24h={stats24hMock}
+      />
+    )
 
-  expect(screen.getByText('Ultimo chequeo')).toBeInTheDocument()
-
-  expect(
-    screen.getByText(/Chequeado cada 5 minutos/i)
-  ).toBeInTheDocument()
-})
-
+    expect(screen.getByText(/último chequeo/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/chequeado cada 5 minutos/i)
+    ).toBeInTheDocument()
+  })
 
   it('renders uptime bars correctly', () => {
     const { container } = render(
@@ -111,20 +108,23 @@ describe('MonitorStatsOverview', () => {
   })
 
   it('renders stats for all periods', () => {
-    render(
-      <MonitorStatsOverview
-        monitor={baseMonitor as any}
-        stats24h={stats24hMock}
-      />
-    )
+  render(
+    <MonitorStatsOverview
+      monitor={baseMonitor as any}
+      stats24h={stats24hMock}
+    />
+  )
 
-    expect(screen.getByText('Ultimos 7 dias')).toBeInTheDocument()
-    expect(screen.getByText('97%')).toBeInTheDocument()
+  expect(screen.getAllByText(/últimas 24 horas/i).length).toBeGreaterThan(1)
+  expect(screen.getAllByText('99%').length).toBeGreaterThan(1)
 
-    expect(screen.getByText('Ultimos 30 dias')).toBeInTheDocument()
-    expect(screen.getByText('95%')).toBeInTheDocument()
+  expect(screen.getByText(/últimos 7 dias/i)).toBeInTheDocument()
+  expect(screen.getByText('97%')).toBeInTheDocument()
 
-    expect(screen.getByText('Ultimos 365 dias')).toBeInTheDocument()
-    expect(screen.getByText('92%')).toBeInTheDocument()
-  })
+  expect(screen.getByText(/últimos 30 dias/i)).toBeInTheDocument()
+  expect(screen.getByText('95%')).toBeInTheDocument()
+
+  expect(screen.getByText(/últimos 365 dias/i)).toBeInTheDocument()
+  expect(screen.getByText('92%')).toBeInTheDocument()
+})
 })

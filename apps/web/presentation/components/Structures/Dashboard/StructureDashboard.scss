@@ -45,6 +45,10 @@ $color-background-content: #131A25;
 
             &::-webkit-scrollbar { width: 4px; }
             &::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+
+            .link-to-index {
+                text-decoration: none;
+            }
         }
 
         > div[role='complementary'] {
