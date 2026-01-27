@@ -94,10 +94,11 @@ $accent-red: #ef4444;
     }
 
     .sub {
-      cursor: pointer;
       font-size: 12px;
       color: $text-muted;
-
+      cursor: pointer;
+      text-decoration: none;
+      
       &:hover {
         text-decoration: underline;
         color: $accent-green;

@@ -1,36 +1,12 @@
-"use client"
+import { constructMetadata } from "@/lib/utils/seo";
+import LoginView from "./LoginView";
 
-import { useRouter } from 'next/navigation';
+export const metadata = constructMetadata({
+  title: "Iniciar sesión",
+  description: "Accede a tu cuenta de Server Check para monitorear tus servidores.",
+  noIndex: true,
+});
 
-import { AuthCard } from "@/presentation/components/auth/AuthCard";
-import { LoginForm } from "@/presentation/components/auth/LoginForm";
-import { useAuth } from '@/lib/hooks/useAuth';
-
-const REDIRECTION_PATH = '/dashboard/home';
-
-export default function Login() {
-  const router = useRouter();
-  const { error, isLoading, login } = useAuth();
-
-  const handleLogin = async (email: string, password: string) => {
-    await login(email, password);
-    router.push(REDIRECTION_PATH);
-  };
-
-  return (
-    <AuthCard
-      title="Iniciar sesión"
-      subtitle="Ingresá tus credenciales para acceder"
-      footerText="¿No tenés cuenta?"
-      footerLink="/auth/register"
-      footerLinkText="Registrate"
-      error={error}
-      errorTitle="Error de inicio de sesión"
-    >
-      <LoginForm
-        isLoading={isLoading}
-        onLogin={handleLogin}
-      />
-    </AuthCard>
-  );
+export default function LoginPage() {
+  return <LoginView />;
 }

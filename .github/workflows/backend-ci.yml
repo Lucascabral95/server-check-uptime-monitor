@@ -163,6 +163,8 @@ jobs:
       PORT: 3000
       NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
       NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+      NEXT_PUBLIC_API_URL_BACKEND: ${{ secrets.NEXT_PUBLIC_API_URL_BACKEND }}
+      NEXT_PUBLIC_URL_FRONTEND: ${{ secrets.NEXT_PUBLIC_URL_FRONTEND }}
 
     steps:
       - name: Checkout repository
@@ -185,6 +187,8 @@ jobs:
           PORT=3000
           NEXT_PUBLIC_COGNITO_USER_POOL_ID=${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
           NEXT_PUBLIC_COGNITO_CLIENT_ID=${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+          NEXT_PUBLIC_API_URL_BACKEND=${{ secrets.NEXT_PUBLIC_API_URL_BACKEND }}
+          NEXT_PUBLIC_URL_FRONTEND=${{ secrets.NEXT_PUBLIC_URL_FRONTEND }}
           EOF
 
       - name: Run tests

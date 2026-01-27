@@ -1,8 +1,9 @@
-import { MdCheckCircle } from "react-icons/md"
+import { FaCircle } from "react-icons/fa";
 
 import StructureChartStats from "../../Structures/Dashboard/Home/StructureChartStats"
 import { GetStatsUserInterface, Status } from "@/infraestructure/interfaces";
 import { getStatusColor } from "@/presentation/utils";
+
 import "./CardUptime.scss"
 
 interface ChartStatsProps {
@@ -17,7 +18,7 @@ const ChartStats = ({ statsUser }: ChartStatsProps) => {
                 <p> Estadísticas actuales </p>
              </div>
              <div className="icon-status">
-                <MdCheckCircle 
+                <FaCircle 
                 className="icon"
                  style={{ color: getStatusColor(statsUser?.downLast24h?.length > 0 ? Status.DOWN : Status.UP) }}
                   />

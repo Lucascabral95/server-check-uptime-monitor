@@ -74,11 +74,6 @@ $accent-red: #ff5f5f;
   .percentage {
     font-size: 20px;
     font-weight: 700;
-    color: $accent-green;
-
-    &.down {
-      color: $accent-red;
-    }
 
     &.muted {
       color: $text-muted-dark;

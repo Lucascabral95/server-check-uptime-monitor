@@ -1,114 +1,426 @@
 <p align="center">
-  <a href="https://nestjs.com/" target="blank">
+  <a href="https://nestjs.com/" target="_blank">
     <img src="https://nestjs.com/img/logo_text.svg" alt="NestJS Logo" width="320"/>
   </a>
 </p>
 
-# Server Check App
+<h1 align="center">Server Check App</h1>
 
-## 📋 Descripción General
+<p align="center">
+  Plataforma de monitoreo de uptime de alto rendimiento con arquitectura de monorepo, procesamiento asíncrono y monitoreo continuo de servicios web.
+</p>
 
-**Server Check App** es un sistema de monitoreo de uptime para servicios web con arquitectura de alto rendimiento. Construido con [NestJS](https://nestjs.com/) y TypeScript en una arquitectura de monorepo, este sistema ofrece procesamiento asíncrono con colas, optimizaciones para alto throughput y monitoreo continuo de disponibilidad y rendimiento.
+***
 
-## 🚀 Características Principales
+## Table of contents
+
+- [Descripción general](#descripción-general)
+- [⚙️ Características principales](#️-características-principales)
+- [🏛️ Arquitectura del sistema](#️-arquitectura-del-sistema)
+  - [Flujo de datos](#flujo-de-datos)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [🛠️ Catálogo de servicios](#️-catálogo-de-servicios)
+  - [🔐 Auth Module](#-auth-module)
+  - [📊 Uptime Module](#-uptime-module)
+  - [📝 Ping Log Module](#-ping-log-module)
+  - [📧 Email Module](#-email-module)
+  - [🌐 Frontend (Next.js)](#-frontend-nextjs)
+- [🚀 Guía de instalación y ejecución](#-guía-de-instalación-y-ejecución)
+- [🛠️ Scripts disponibles](#️-scripts-disponibles)
+- [🧪 Testing](#-testing)
+- [🐳 Docker](#-docker)
+- [🔄 CI/CD](#-cicd)
+- [🛡️ Seguridad implementada](#️-seguridad-implementada)
+- [📚 Documentación de la API](#-documentación-de-la-api)
+- [🤝 Contribuciones](#-contribuciones)
+- [📄 Licencia](#-licencia)
+- [📬 Contacto](#-contacto)
+
+## Descripción general
+
+**Server Check App** es un sistema de monitoreo de uptime para servicios web con arquitectura de alto rendimiento. Construido con [NestJS](https://nestjs.com/) y [Next.js](https://nextjs.org/) en una arquitectura de monorepo con [Turbo](https://turbo.build/repo), este sistema ofrece procesamiento asíncrono con colas, optimizaciones para alto throughput y monitoreo continuo de disponibilidad y rendimiento.
+
+El backend está optimizado para manejar miles de checks por minuto grâce a un pool de conexiones HTTP, un sistema de buffering para escrituras masivas a la base de datos, y un procesador de colas que escala automáticamente según la cantidad de monitores activos.
+
+***
+
+<a id="️-características-principales"></a>
+## ⚙️ Características principales
 
 ### Backend - High Performance Architecture
 
-- **⚡ HTTP Connection Pooling** - Pool de conexiones HTTP con Undici para optimizar rendimiento
-- **📦 Buffer de Escritura** - Sistema de buffering batch para writes masivos a BD
-- **🔌 Circuit Breaker** - Protección contra fallos en cascada en endpoints monitoreados
-- **🔄 Retry con Exponential Backoff** - Reintentos inteligentes para checks fallidos
+- **⚡ HTTP Connection Pooling** - Pool de conexiones HTTP con Undici para optimizar rendimiento (100 conexiones, pipelining 10)
+- **📦 Buffer de Escritura** - Sistema de buffering batch para writes masivos a BD (500 logs, flush cada 5s)
+- **🔌 Circuit Breaker** - Protección contra fallos en cascada en endpoints monitoreados (se abre tras 5 fallos)
+- **🔄 Retry con Exponential Backoff** - Reintentos inteligentes para checks fallidos (hasta 3 reintentos)
 - **⚙️ Procesamiento Asíncrono** - Colas BullMQ para checks de monitoreo no bloqueantes
-- **💀 Dead Letter Queue** - Manejo de jobs fallidos con reintentos extendidos
-- **📈 Auto-escalado de Jobs** - Cada monitor tiene su job recurrente individual
+- **💀 Dead Letter Queue** - Manejo de jobs fallidos con reintentos extendidos (5 retries con backoff exponencial)
+- **📈 Auto-escalado de Jobs** - Cada monitor tiene su job recurrente individual (job ID único)
 - **🔐 Cache de JWKS** - Claves públicas de Cognito cacheadas por 5 minutos
 - **✅ Validación de Entorno** - Variables de entorno validadas con Joi al inicio
+- **📊 Métricas en Tiempo Real** - Stats HTTP pool (avg, p95, p99 response times)
 
-### API Versionada
+### Frontend - Modern Dashboard
 
-- Prefijo global: `/api/v1`
-- DTOs con validación estricta
-- Documentación integrada con Swagger
+- **🎨 Next.js 16 + React 19** - Última versión con App Router y Server Components
+- **💅 Tailwind CSS 4** - Estilizado moderno con motor CSS nativo
+- **🔐 Autenticación con AWS Amplify** - Integración completa con AWS Cognito
+- **📱 Diseño Responsive** - Optimizado para todos los dispositivos
+- **⚡ Optimizaciones** - Code splitting, lazy loading, image optimization
 
-### Base de Datos Optimizada
+<a id="️-arquitectura-del-sistema"></a>
+## 🏛️ Arquitectura del sistema
 
-- Índices compuestos para consultas frecuentes
-- Relaciones con cascade delete
-- Enum types para type safety
+El siguiente diagrama ilustra el flujo de datos y la interacción entre los componentes de la plataforma:
 
-## 🛠️ Tecnologías Utilizadas
+```mermaid
+graph TB
+    subgraph "Frontend - Next.js 16"
+        U[Usuario]
+        L[Landing Page]
+        A[Auth Pages]
+        D[Dashboard]
+    end
 
-| Componente | Tecnología |
-|------------|------------|
-| **Backend Framework** | [NestJS](https://nestjs.com/) |
-| **Lenguaje** | [TypeScript](https://www.typescriptlang.org/) |
-| **Base de datos** | [PostgreSQL 16](https://www.postgresql.org/) |
-| **ORM** | [Prisma](https://www.prisma.io/) |
-| **Colas** | [BullMQ](https://docs.bullmq.io/) + [Redis 7](https://redis.io/) |
-| **HTTP Client** | [Undici](https://github.com/nodejs/undici) |
-| **Validación** | [Joi](https://joi.dev/) + [class-validator](https://github.com/typestack/class-validator) |
-| **Autenticación** | [JWT](https://jwt.io/) ([AWS Cognito JWKS](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-idp-jwks.html)) |
-| **Frontend** | [Next.js 15](https://nextjs.org/) + [React 19](https://react.dev/) |
-| **Build System** | [Turbo](https://turbo.build/repo) |
+    subgraph "Backend - NestJS"
+        API[API Gateway /api/v1]
+        AUTH[Auth Module]
+        UPTIME[Uptime Module]
+        PING[Ping Log Module]
+        EMAIL[Email Module]
+    end
 
-## 📦 Estructura del Proyecto
+    subgraph "Background Processing"
+        QUEUE[BullMQ Queue]
+        PROC[Uptime Processor]
+        DLQ[Dead Letter Queue]
+    end
+
+    subgraph "Infrastructure"
+        PG[(PostgreSQL 16)]
+        REDIS[(Redis 7)]
+        POOL[HTTP Pool Service]
+        BUFFER[Ping Log Buffer]
+    end
+
+    subgraph "External Services"
+        COGNITO[AWS Cognito]
+        SES[AWS SES]
+    end
+
+    U --> L
+    U --> A
+    U --> D
+
+    L --> API
+    A --> API
+    D --> API
+
+    API --> AUTH
+    API --> UPTIME
+
+    AUTH --> COGNITO
+    AUTH --> PG
+
+    UPTIME --> QUEUE
+    UPTIME --> PG
+
+    QUEUE --> PROC
+    PROC --> POOL
+    PROC --> BUFFER
+    PROC --> EMAIL
+
+    POOL -->|HTTP Check| Internet[Internet Services]
+    BUFFER --> PG
+    EMAIL --> SES
+    EMAIL --> PG
+
+    PROC -->|On Failure| DLQ
+    DLQ --> PROC
+
+    QUEUE --> REDIS
+```
+
+<a id="flujo-de-datos"></a>
+## Flujo de datos
+
+1. **Autenticación**: El usuario se registra/login a través de AWS Cognito
+2. **Creación de Monitor**: El usuario crea un monitor vía API
+3. **Job Scheduling**: BullMQ crea un job recurrente individual para el monitor
+4. **Health Check**: El processor ejecuta el check HTTP usando el pool de conexiones
+5. **Buffering**: El resultado se almacena en el buffer de PingLogs
+6. **Batch Write**: Cada 5 segundos o 500 logs, se escriben a PostgreSQL
+7. **Status Update**: El estado del monitor se actualiza (UP/DOWN)
+8. **Notificación**: Si el estado cambió, se envía email de alerta
+9. **Error Handling**: Si falla, el job va a la Dead Letter Queue para retries extendidos
+
+<a id="estructura-del-proyecto"></a>
+## Estructura del proyecto
 
 ```text
 server-check-app/
 ├── apps/
-│   ├── backend-uptime/     # NestJS API (puerto 4000)
+│   ├── backend-uptime/              # NestJS API (puerto 4000)
 │   │   ├── src/
-│   │   │   ├── auth/               # Autenticación y autorización
-│   │   │   ├── config/             # Configuraciones
-│   │   │   ├── errors/             # Manejo de errores
-│   │   │   ├── ping-log/           # Logs de monitoreo
-│   │   │   ├── prisma/             # Configuración de Prisma ORM
-│   │   │   ├── uptime/             # Módulo de monitoreo
+│   │   │   ├── auth/                # Autenticación JWT + JWKS
+│   │   │   │   ├── guards/          # JwtAuthGuard, RolesGuard
+│   │   │   │   ├── strategies/      # JWT Strategy
+│   │   │   │   └── decorators/      # @Roles decorator
+│   │   │   ├── uptime/              # Módulo de monitoreo
 │   │   │   │   ├── services/
-│   │   │   │   │   └── http-pool.service.ts   # Pool HTTP
+│   │   │   │   │   └── http-pool.service.ts   # Pool HTTP Undici
 │   │   │   │   ├── uptime.processor.ts        # BullMQ worker
-│   │   │   │   └── uptime.service.ts          # Lógica de negocio
-│   │   │   ├── user/               # Módulo de usuarios
-│   │   │   └── bullmq/             # Configuración BullMQ
-│   │   └── prisma/
-│   │       └── schema.prisma       # Esquema de la base de datos
-│   └── web/                # Next.js frontend (puerto 3000)
-├── packages/               # Paquetes compartidos
-├── docker-compose.yml      # Infraestructura local
-└── turbo.json             # Orquestación de builds
+│   │   │   │   ├── uptime.service.ts          # Lógica de negocio
+│   │   │   │   └── dto/                       # Data Transfer Objects
+│   │   │   ├── ping-log/            # Logs de monitoreo
+│   │   │   │   ├── ping-log-buffer.service.ts # Buffer batch
+│   │   │   │   ├── ping-log.service.ts
+│   │   │   │   └── dto/
+│   │   │   ├── email/               # Notificaciones por email
+│   │   │   │   ├── email.service.ts
+│   │   │   │   └── dto/
+│   │   │   ├── user/                # Gestión de usuarios
+│   │   │   │   ├── user.service.ts
+│   │   │   │   ├── user.controller.ts
+│   │   │   │   └── dto/
+│   │   │   ├── prisma/              # Configuración Prisma ORM
+│   │   │   │   ├── prisma.module.ts
+│   │   │   │   └── prisma.service.ts
+│   │   │   ├── bullmq/              # Configuración BullMQ
+│   │   │   │   └── bullmq.module.ts
+│   │   │   ├── config/              # Configuraciones
+│   │   │   │   ├── cors.ts
+│   │   │   │   ├── envs.schema.ts   # Validación Joi
+│   │   │   │   └── routes-excludes-prefix.ts
+│   │   │   ├── errors/              # Manejo de errores
+│   │   │   │   ├── handler-prisma-error.ts
+│   │   │   │   └── prisma.exception-filter.ts
+│   │   │   ├── jwt-module/          # JWT Module
+│   │   │   ├── utils/               # Utilidades (email design, etc)
+│   │   │   ├── dto/                 # DTOs globales
+│   │   │   ├── app.module.ts        # Root module
+│   │   │   └── main.ts              # Entry point
+│   │   ├── prisma/
+│   │   │   └── schema.prisma        # Esquema de base de datos
+│   │   ├── .env.template            # Template de variables de entorno
+│   │   ├── Dockerfile
+│   │   └── package.json
+│   │
+│   └── web/                         # Next.js 16 frontend (puerto 3000)
+│       ├── app/                     # App Router
+│       │   ├── (auth)/              # Route group: Auth pages
+│       │   │   ├── login/
+│       │   │   │   ├── page.tsx
+│       │   │   │   └── LoginView.tsx
+│       │   │   ├── register/
+│       │   │   │   ├── page.tsx
+│       │   │   │   └── RegisterView.tsx
+│       │   │   └── validate-email/
+│       │   │       ├── page.tsx
+│       │   │       └── ValidateEmailView.tsx
+│       │   ├── (dashboard)/         # Route group: Protected routes
+│       │   │   ├── layout.tsx       # Dashboard shell
+│       │   │   ├── home/
+│       │   │   │   ├── page.tsx     # Lista de monitores
+│       │   │   │   └── DashboardHomeView.tsx
+│       │   │   ├── monitors/
+│       │   │   │   ├── new/http/
+│       │   │   │   │   ├── page.tsx
+│       │   │   │   │   └── MonitorsNewHttpView.tsx
+│       │   │   │   └── [id]/
+│       │   │   │       ├── details/
+│       │   │   │       │   ├── page.tsx
+│       │   │   │       │   └── MonitorsDetailsByIdView.tsx
+│       │   │   │       └── edit/
+│       │   │   │           ├── page.tsx
+│       │   │   │           └── EditMonitorView.tsx
+│       │   │   ├── incidents/
+│       │   │   │   ├── page.tsx
+│       │   │   │   └── IncidentsDashboardView.tsx
+│       │   │   ├── servers/
+│       │   │   │   ├── page.tsx
+│       │   │   │   └── ServerStatusDashboardView.tsx
+│       │   │   └── settings/
+│       │   │       ├── page.tsx
+│       │   │       └── SettingsDashboardView.tsx
+│       │   ├── layout.tsx           # Root layout
+│       │   ├── page.tsx             # Landing page
+│       │   ├── globals.css          # Tailwind CSS
+│       │   ├── robots.ts            # SEO
+│       │   └── sitemap.ts           # SEO
+│       │
+│       ├── presentation/
+│       │   ├── components/
+│       │   │   ├── auth/            # Auth components
+│       │   │   │   ├── LoginForm.tsx
+│       │   │   │   ├── RegisterForm.tsx
+│       │   │   │   ├── ValidateEmailForm.tsx
+│       │   │   │   ├── AuthCard.tsx
+│       │   │   │   ├── PasswordRequirementsIndicator.tsx
+│       │   │   │   └── auth.scss
+│       │   │   ├── Dashboard/       # Dashboard components
+│       │   │   │   ├── Home/
+│       │   │   │   │   ├── CardUptime.tsx
+│       │   │   │   │   ├── StatusUptimes.tsx
+│       │   │   │   │   ├── ChartStatsLastDay.tsx
+│       │   │   │   │   ├── DetailsUptime/
+│       │   │   │   │   │   ├── MonitorStatsOverview.tsx
+│       │   │   │   │   │   ├── LatestIncidents.tsx
+│       │   │   │   │   │   └── MonitorDetailsHeader.tsx
+│       │   │   │   │   └── Incidents/
+│       │   │   │   │       └── TableIncidents.tsx
+│       │   │   │   ├── LogoutProfile.tsx
+│       │   │   │   └── Categories.tsx
+│       │   │   ├── Landing/         # Landing page components
+│       │   │   │   ├── HeroSection.tsx
+│       │   │   │   ├── FeaturesSection.tsx
+│       │   │   │   ├── CTASection.tsx
+│       │   │   │   ├── FooterSection.tsx
+│       │   │   │   └── LogosSection.tsx
+│       │   │   ├── Filters/         # Filter components
+│       │   │   │   └── FiltersMonitor/
+│       │   │   │       ├── FiltersMonitor.tsx
+│       │   │   │       ├── FilterMonitorInside.tsx
+│       │   │   │       ├── SortMonitorInside.tsx
+│       │   │   │       └── FiltersIncidents.tsx
+│       │   │   ├── shared/          # Shared components
+│       │   │   │   ├── states/
+│       │   │   │   │   ├── LoadingState.tsx
+│       │   │   │   │   └── ErrorState.tsx
+│       │   │   │   └── Toasts/
+│       │   │   │       └── Toast.tsx
+│       │   │   └── Structures/      # Layout structures
+│       │   │       ├── LoginRegisterValidate/
+│       │   │       │   └── StructureLoginRegisterValidate.tsx
+│       │   │       └── Dashboard/
+│       │   │           └── StructureDashboard.tsx
+│       │   ├── hooks/                # Custom React hooks
+│       │   │   ├── useUptime.hook.ts
+│       │   │   ├── useUptimeCheck.hook.ts
+│       │   │   ├── usePingLogs.hook.ts
+│       │   │   ├── useMonitorById.hook.ts
+│       │   │   ├── useMonitorByIdWithStatsLogs.ts
+│       │   │   ├── useAllMonitorsWithIncidentsByUser.hook.ts
+│       │   │   ├── useFilteredIncidents.hook.ts
+│       │   │   ├── useNewMonitor.hook.ts
+│       │   │   └── useUsers.hook.ts
+│       │   ├── utils/                # Utility functions
+│       │   │   ├── jwt.utils.ts
+│       │   │   ├── decodeTokenJwt.utils.ts
+│       │   │   ├── formatDate.utils.ts
+│       │   │   ├── formatInterval.utils.ts
+│       │   │   ├── formatLastCheck.utils.ts
+│       │   │   ├── formatTimeRemaining.utils.ts
+│       │   │   ├── getStatusColor.utils.ts
+│       │   │   └── porcentHealthy.utils.ts
+│       │   └── components/SEO/       # SEO components
+│       ├── lib/                      # Utility libraries
+│       │   └── utils/
+│       │       └── index.ts
+│       ├── public/                   # Static assets
+│       ├── next.config.ts            # Next.js config
+│       ├── postcss.config.mjs        # PostCSS config
+│       ├── CLAUDE.md                 # Frontend context
+│       └── package.json
+│
+├── packages/                         # Paquetes compartidos
+├── docker-compose.yml                # Infraestructura local
+├── turbo.json                        # Orquestación de builds
+├── package.json                      # Root package.json
+├── CLAUDE.md                         # Project context
+└── README.md                         # Este archivo
 ```
 
-## 🗄️ Modelo de Datos
+<a id="️-catálogo-de-servicios"></a>
+## 🛠️ Catálogo de servicios
 
-```text
-User (Usuario)
-  ├── Role: ADMIN | USER | GUEST
-  ├── cognitoSub: AWS Cognito Subject
-  └── Monitor (1:N) - Configuración de monitoreo
-        ├── status: PENDING | UP | DOWN
-        ├── frequency: Segundos entre checks
-        └── PingLog (1:N) - Logs de checks individuales
-              ├── statusCode: HTTP status
-              ├── durationMs: Duración en ms
-              └── success: Booleano
-```
+<a id="-auth-module"></a>
+### 🔐 Auth Module
 
-## 🚀 Instalación
+- **Ruta**: `apps/backend-uptime/src/auth/`
+- **Stack**: NestJS, JWT, AWS Cognito JWKS
+- **Función**: Gestión de autenticación y autorización
+- **Características**:
+  - Validación JWT con JWKS de AWS Cognito
+  - Cache de claves públicas (5 minutos TTL)
+  - RolesGuard para control de acceso (ADMIN, USER, GUEST)
+  - Decorador @Roles para protección de rutas
 
-### 1. Clonar el repositorio
+<a id="-uptime-module"></a>
+### 📊 Uptime Module
+
+- **Ruta**: `apps/backend-uptime/src/uptime/`
+- **Stack**: NestJS, BullMQ, Undici, Prisma
+- **Función**: Módulo principal de monitoreo
+- **Características**:
+  - HTTP Pool Service con Undici (100 conexiones, pipelining 10)
+  - Circuit Breaker (se abre tras 5 fallos)
+  - Retry con Exponential Backoff (hasta 3 reintentos)
+  - Uptime Processor (BullMQ worker)
+  - Job individual por monitor con ID único
+  - Dead Letter Queue para jobs fallidos
+  - Métricas en tiempo real (avg, p95, p99 response times)
+
+<a id="-ping-log-module"></a>
+### 📝 Ping Log Module
+
+- **Ruta**: `apps/backend-uptime/src/ping-log/`
+- **Stack**: NestJS, Prisma
+- **Función**: Gestión de logs de monitoreo con buffer
+- **Características**:
+  - Buffer de escritura batch (500 logs, flush cada 5s)
+  - Auto-flush al alcanzar tamaño óptimo
+  - Backpressure (rechaza logs cuando está lleno)
+  - Retry buffer para logs fallidos
+  - Health checks y métricas de utilización
+
+<a id="-email-module"></a>
+### 📧 Email Module
+
+- **Ruta**: `apps/backend-uptime/src/email/`
+- **Stack**: NestJS, AWS SES, Nodemailer
+- **Función**: Envío de notificaciones por email
+- **Características**:
+  - Envío de alertas cuando cambia el estado (UP↔DOWN)
+  - Diseño de email HTML responsive
+  - Integración con AWS SES para producción
+
+<a id="-frontend-nextjs"></a>
+### 🌐 Frontend (Next.js)
+
+- **Ruta**: `apps/web/`
+- **Stack**: Next.js 16, React 19, Tailwind CSS 4, AWS Amplify
+- **Puerto**: 3000
+- **Características**:
+  - App Router con Server Components
+  - Autenticación con AWS Amplify
+  - Dashboard responsive con monitoreo en tiempo real
+  - Componentes reutilizables con Testing
+  - Hooks personalizados para gestión de estado
+
+<a id="-guía-de-instalación-y-ejecución"></a>
+## 🚀 Guía de instalación y ejecución
+
+### Prerrequisitos
+
+- Node.js 20+
+- Docker y Docker Compose
+- npm, yarn o pnpm
+
+### 1) Clonar el repositorio
 
 ```bash
 git clone https://github.com/Lucascabral95/server-check-app.git
 cd server-check-app
 ```
 
-### 2. Instalar dependencias
+### 2) Instalar dependencias
 
 ```bash
 npm install
 ```
 
-### 3. Configurar variables de entorno
+### 3) Configurar variables de entorno
 
 ```bash
 cp apps/backend-uptime/.env.template apps/backend-uptime/.env
@@ -139,15 +451,22 @@ JWT_EXPIRES_IN=60d
 
 # Frontend (CORS)
 MY_URL_FRONTEND=http://localhost:3000
+
+# Email (AWS SES)
+SMTP_HOST=your_smtp_host
+SMTP_PORT=your_smtp_port
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+EMAIL_FROM=your_email
 ```
 
-### 4. Iniciar infraestructura (PostgreSQL + Redis)
+### 4) Iniciar infraestructura (PostgreSQL + Redis)
 
 ```bash
 docker-compose up -d postgres redis
 ```
 
-### 5. Ejecutar migraciones
+### 5) Ejecutar migraciones
 
 ```bash
 cd apps/backend-uptime
@@ -155,7 +474,7 @@ npx prisma migrate dev
 npx prisma generate
 ```
 
-### 6. Iniciar el servidor
+### 6) Iniciar el servidor
 
 ```bash
 # Todo el monorepo
@@ -163,200 +482,130 @@ npm run dev
 
 # Solo backend
 npm run dev:backend
+
+# Solo frontend
+npm run dev:frontend
 ```
 
-El backend estará disponible en `http://localhost:4000`
+- **Backend**: `http://localhost:4000`
+- **Frontend**: `http://localhost:3000`
 
-## 📚 Documentación de la API
+<a id="️-scripts-disponibles"></a>
+## 🛠️ Scripts disponibles
 
-### Rutas Públicas
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/v1/uptime` | Listar monitores |
-
-### Autenticación Requerida (JWT)
-
-| Método | Endpoint | Descripción | Rol |
-|--------|----------|-------------|-----|
-| POST | `/api/v1/uptime` | Crear monitor | USER |
-| GET | `/api/v1/uptime/:id` | Obtener monitor | ADMIN |
-| PATCH | `/api/v1/uptime/:id` | Actualizar monitor | ADMIN |
-| DELETE | `/api/v1/uptime/:id` | Eliminar monitor | ADMIN |
-| GET | `/api/v1/user` | Listar usuarios | ADMIN |
-| GET | `/api/v1/user/:id` | Obtener usuario | ADMIN |
-| PATCH | `/api/v1/user/:id` | Actualizar usuario | ADMIN |
-| DELETE | `/api/v1/user/:id` | Eliminar usuario | ADMIN |
-
-### Endpoints de Monitoreo (Admin)
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/v1/uptime/stats` | Estadísticas del pool HTTP |
-| GET | `/api/v1/uptime/flush` | Forzar flush del buffer |
-
-## 🔐 Flujo de Autenticación
-
-El backend utiliza **AWS Cognito** para autenticación JWT:
-
-1. Cliente obtiene token de AWS Cognito
-2. Token enviado en header: `Authorization: Bearer <token>`
-3. [`JwtAuthGuard`](apps/backend-uptime/src/auth/guards/jwt-auth.guard.ts) valida:
-   - Decodifica header para obtener `kid` (Key ID)
-   - Obtiene claves públicas desde endpoint JWKS de Cognito
-   - Verifica firma con clave pública correspondiente
-   - Valida `iss` (issuer), `exp` (expiración), `token_use`
-4. Payload del usuario adjuntado a `request.user`
-5. Usuario creado/encontrado en base de datos automáticamente
-
-## ⚡ Servicios de Alto Rendimiento
-
-### HttpPoolService
-
-Servicio de pooling de conexiones HTTP con [`undici`](apps/backend-uptime/src/uptime/services/http-pool.service.ts):
-
-- **Pool por dominio**: Máximo 100 conexiones, pipelining de 10
-- **Circuit Breaker**: Se abre tras 5 fallos consecutivos
-- **Retry exponencial**: Hasta 3 reintentos con backoff
-- **Timeout configurables**: 5s connect, 10s total
-- **Métricas en tiempo real**: avg, p95, p99 response times
-
-**Configuración:**
-```typescript
-const CONFIG = {
-  POOL_CONNECTIONS: 100,
-  POOL_PIPELINING: 10,
-  KEEP_ALIVE_TIMEOUT: 60000,
-  CONNECT_TIMEOUT: 5000,
-  MAX_RETRIES: 3,
-  CIRCUIT_BREAKER_THRESHOLD: 5,
-}
-```
-
-### PingLogBufferService
-
-Buffer de escritura batch para logs de ping ([`ping-log-buffer.service.ts`](apps/backend-uptime/src/ping-log/ping-log-buffer.service.ts)):
-
-- **Buffer size**: 500 logs (máximo 2000)
-- **Auto-flush**: Cada 500 logs o 5 segundos
-- **Retry buffer**: Logs fallidos reintentados
-- **Backpressure**: Rechaza logs cuando está lleno
-- **Stats**: Métricas de utilización en tiempo real
-
-**Configuración:**
-```typescript
-const CONFIG = {
-  BUFFER_SIZE: 500,
-  MAX_BUFFER_SIZE: 2000,
-  FLUSH_INTERVAL_MS: 5000,
-  MAX_FLUSH_RETRIES: 3,
-}
-```
-
-### BullMQ Worker
-
-Procesador de jobs asíncrono ([`uptime.processor.ts`](apps/backend-uptime/src/uptime/uptime.processor.ts)):
-
-- **Job individual por monitor**: Cada monitor tiene su job recurrente
-- **Job ID único**: `monitor:{monitorId}` para evitar duplicados
-- **Dead Letter Queue**: Jobs fallidos movidos a DLQ tras 3 intentos
-- **Health checks**: Verifica isActive antes de procesar
-
-**Arquitectura de Jobs:**
-```typescript
-await monitorQueue.add(
-  'check-monitor',
-  { monitorId },
-  {
-    jobId: `monitor:${monitorId}`,
-    repeat: { every: frequency * 1000 },
-  },
-);
-```
-
-## 📝 Scripts Disponibles
+### Root (Monorepo)
 
 ```bash
-# Desarrollo (todo el monorepo)
-npm run dev                    # Inicia backend y frontend
-
-# Solo backend
-npm run dev:backend            # Inicia solo backend en modo watch
-
-# Build
-npm run build                  # Build de todas las apps
-
-# Docker
-npm run docker:backend         # Levanta backend con Docker Compose
+npm run dev              # Inicia backend y frontend
+npm run dev:backend      # Inicia solo backend
+npm run dev:frontend     # Inicia solo frontend
+npm run build            # Build de todas las apps
+npm run lint             # Lint de todas las apps
+npm run docker:backend   # Levanta backend con Docker Compose
 ```
 
-### Scripts del Backend
+### Backend (apps/backend-uptime)
+
+```bash
+# Desarrollo
+npm run start:dev        # Hot-reload
+npm run start:debug      # Modo debug
+
+# Producción
+npm run build            # Compilar TypeScript
+npm run start:prod       # Ejecutar build
+
+# Tests
+npm run test             # Tests unitarios
+npm run test:e2e         # Tests end-to-end
+npm run test:cov         # Tests con cobertura
+npm run test:watch       # Tests en modo watch
+
+# Prisma
+npx prisma generate      # Generar cliente
+npx prisma migrate dev   # Crear migración
+npx prisma migrate deploy# Deploy migraciones
+npx prisma studio        # UI de base de datos
+```
+
+### Frontend (apps/web)
+
+```bash
+# Desarrollo
+npm run dev              # Servidor de desarrollo
+npm run build            # Build de producción
+npm run start            # Servidor de producción
+
+# Construccion + testeo 
+npm run build-test:frontend  # Construcción y testeo del frontend
+npm run build-test:backend   # Construcción y testeo del backend
+
+# Tests
+npm run test             # Tests con Vitest
+npm run test:ui          # Tests con UI
+npm run test:run         # Ejecutar tests
+npm run test:coverage    # Tests con cobertura
+
+# Linting
+npm run lint             # ESLint
+```
+
+<a id="-testing"></a>
+## 🧪 Testing
+
+### Backend Tests
 
 ```bash
 cd apps/backend-uptime
 
-# Desarrollo
-npm run start:dev             # Hot-reload
-npm run start:debug           # Modo debug
+# Tests Unitarios
+npm run test
 
-# Producción
-npm run build                 # Compilar TypeScript
-npm run start:prod            # Ejecutar build
+# Tests E2E
+npm run test:e2e
 
-# Tests
-npm run test                  # Tests unitarios
-npm run test:e2e              # Tests end-to-end
-npm run test:cov              # Tests con cobertura
-npm run test:watch            # Tests en modo watch
+# Tests con Cobertura
+npm run test:cov
 
-# Prisma
-npx prisma generate           # Generar cliente
-npx prisma migrate dev        # Crear migración
-npx prisma migrate deploy     # Deploy migraciones
-npx prisma studio             # UI de base de datos
+# Tests en modo watch
+npm run test:watch
 ```
 
-## 🧪 Ejemplos de Uso
-
-### Crear un monitor
+### Frontend Tests
 
 ```bash
-curl -X POST http://localhost:4000/api/v1/uptime \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <access_token>" \
-  -d '{
-    "name": "Mi API",
-    "url": "https://api.example.com",
-    "frequency": 60,
-    "userId": "user-id"
-  }'
+cd apps/web
+
+# Tests con Vitest
+npm run test
+
+# Tests con UI
+npm run test:ui
+
+# Tests con cobertura
+npm run test:coverage
 ```
 
-### Obtener estadísticas del sistema
+<a id="-docker"></a>
+## 🐳 Docker
+
+### Infraestructura local
 
 ```bash
-curl http://localhost:4000/api/v1/uptime/stats \
-  -H "Authorization: Bearer <access_token>"
+# Construir y ejecutar los contenedores
+docker-compose up --build -d
+
+# Detener los contenedores
+docker-compose down
+
+# Ver logs
+docker-compose logs -f
+
+# Escalar servicios
+docker-compose up -d --scale backend-uptime=3
 ```
 
-Respuesta:
-```json
-{
-  "httpPool": {
-    "activeRequests": 5,
-    "totalRequests": 1000,
-    "successfulRequests": 950,
-    "averageResponseTime": 125.5
-  },
-  "buffer": {
-    "currentSize": 50,
-    "totalFlushed": 5000,
-    "flushCount": 10
-  },
-  "bufferUtilization": 2.5
-}
-```
-
+<a id="-cicd"></a>
 ## 🔄 CI/CD
 
 El proyecto tiene configurado GitHub Actions para el backend:
@@ -375,84 +624,50 @@ El proyecto tiene configurado GitHub Actions para el backend:
 
 Ver [`.github/workflows/backend-ci.yml`](.github/workflows/backend-ci.yml)
 
-## 🛡️ Seguridad Implementada
+<a id="️-seguridad-implementada"></a>
+## 🛡️ Seguridad implementada
 
-- :white_check_mark: Validación JWT con JWKS de AWS Cognito
-- :white_check_mark: Cache de claves públicas con TTL de 5 minutos
-- :white_check_mark: ValidationPipe global con `whitelist: true`
-- :white_check_mark: RBAC con RolesGuard (ADMIN, USER, GUEST)
-- :white_check_mark: CORS configurado con orígenes permitidos
-- :white_check_mark: Variables de entorno validadas con Joi
-- :white_check_mark: Circuit Breaker para protección de endpoints
-- :white_check_mark: Índices de BD optimizados
-- :white_check_mark: Dead Letter Queue para manejo de errores
+- Validación JWT con JWKS de AWS Cognito
+- Cache de claves públicas con TTL de 5 minutos
+- ValidationPipe global con `whitelist: true`
+- RBAC con RolesGuard (ADMIN, USER, GUEST)
+- CORS configurado con orígenes permitidos
+- Variables de entorno validadas con Joi
+- Circuit Breaker para protección de endpoints
+- Índices de BD optimizados
+- Dead Letter Queue para manejo de errores
 
-## 🧪 Testing
+<a id="-documentación-de-la-api"></a>
+## 📚 Documentación de la API
 
-```bash
-# Tests Unitarios
-cd apps/backend-uptime
-npm run test
+### Rutas Públicas
 
-# Tests E2E
-npm run test:e2e
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/uptime` | Listar monitores |
 
-# Tests con Cobertura
-npm run test:cov
+### Autenticación Requerida (JWT)
 
-# Linting
-npm run lint
-```
+| Método | Endpoint | Descripción | Rol |
+|--------|----------|-------------|-----|
+| POST | `/api/v1/uptime` | Crear monitor | USER - ADMIN |
+| GET | `/api/v1/uptime/:id` | Obtener monitor | USER OWNER - ADMIN |
+| PATCH | `/api/v1/uptime/:id` | Actualizar monitor | USER OWNER - ADMIN |
+| DELETE | `/api/v1/uptime/:id` | Eliminar monitor | USER OWNER - ADMIN |
+| GET | `/api/v1/user` | Listar usuarios | ADMIN |
+| GET | `/api/v1/user/:id` | Obtener usuario | USER OWNER - ADMIN |
+| PATCH | `/api/v1/user/:id` | Actualizar usuario | ADMIN |
+| DELETE | `/api/v1/user/:id` | Eliminar usuario | ADMIN |
 
-## 🐳 Docker
+### Endpoints de Monitoreo (Admin)
 
-```bash
-# Construir y ejecutar los contenedores
-docker-compose up --build -d
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/uptime/stats` | Estadísticas del pool HTTP |
+| GET | `/api/v1/uptime/flush` | Forzar flush del buffer |
 
-# Detener los contenedores
-docker-compose down
-```
-
-## 📚 Recursos Adicionales
-
-- [Documentación de NestJS](https://docs.nestjs.com/)
-- [Documentación de Prisma](https://www.prisma.io/docs/)
-- [Documentación de BullMQ](https://docs.bullmq.io/)
-- [Documentación de AWS Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html)
-
-## 🚀 Despliegue
-
-Para desplegar la aplicación en producción, sigue estos pasos:
-
-1. Configura las variables de entorno de producción en `.env`
-2. Construye la aplicación:
-   ```bash
-   npm run build
-   ```
-3. Ejecuta las migraciones de la base de datos:
-   ```bash
-   npx prisma migrate deploy
-   ```
-4. Inicia el servidor en producción:
-   ```bash
-   npm run start:prod
-   ```
-
-### 🐳 Usando Docker
-
-El proyecto incluye configuración para Docker. Para desplegar con Docker:
-
-1. Construye las imágenes:
-   ```bash
-   docker-compose build
-   ```
-2. Inicia los contenedores:
-   ```bash
-   docker-compose up -d
-   ```
-
-## 🤝 Contribución
+<a id="🤝-contribuciones"></a>
+## 🤝 Contribuciones
 
 Las contribuciones son bienvenidas. Por favor, sigue estas pautas:
 
@@ -462,20 +677,33 @@ Las contribuciones son bienvenidas. Por favor, sigue estas pautas:
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
+### Convenciones de Commits
+
+Este proyecto sigue [Conventional Commits](https://www.conventionalcommits.org/):
+
+- `feat:` Nueva funcionalidad
+- `fix:` Corrección de bugs
+- `docs:` Cambios en documentación
+- `style:` Cambios de formato (no afectan la lógica)
+- `refactor:` Refactorización de código
+- `test:` Añadir o modificar tests
+- `chore:` Tareas de mantenimiento
+
+<a id="-licencia"></a>
 ## 📄 Licencia
 
 Este proyecto está bajo la licencia [UNLICENSED](LICENSE).
 
+<a id="-contacto"></a>
 ## 📬 Contacto
 
 - **Autor**: [Lucas Cabral](https://github.com/Lucascabral95)
 - **Email**: [lucassimple1995@hotmail.com](mailto:lucassimple1995@hotmail.com)
 - **LinkedIn**: [Lucas Gastón Cabral](https://www.linkedin.com/in/lucas-gast%C3%B3n-cabral/)
-- **GitHub**: [@Lucascabral95](https://github.com/Lucascabral95)
 - **Website**: [Lucas Cabral | Portfolio](https://portfolio-web-dev-git-main-lucascabral95s-projects.vercel.app/)
 
 ---
 
 <p align="center">
-  Construido con ❤️ usando <a href="https://nestjs.com/">NestJS</a>
+  Construido con :heart: usando <a href="https://nestjs.com/">NestJS</a> y <a href="https://nextjs.org/">Next.js</a>
 </p>

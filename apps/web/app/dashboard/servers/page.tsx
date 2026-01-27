@@ -1,53 +1,16 @@
-'use client'
+import { constructMetadata } from '@/lib/utils/seo';
+import ServerStatusDashboardView from './ServerStatusDashboardView';
 
-import { FiPlus } from "react-icons/fi";
+export const metadata = constructMetadata({
+  title: "Resumen de Estado", 
+  description: "Vista general del estado de todos tus servidores monitoreados.",
+  noIndex: true, 
+});
 
-import StatusUptimes from "@/presentation/components/Dashboard/Home/StatusUptimes/StatusUptimes";
-import ErrorState from "@/presentation/components/shared/states/ErrorState";
-import LoadingState from "@/presentation/components/shared/states/LoadingState";
-import useUptime from "@/presentation/hooks/useUptime.hook";
-
-import "./ServerStatusDashboard.scss"
-
-const ServerStatusDashboard  = () => { 
-    const params = {
-        includeInactive: true,
-        limit: 1000,
-    };
-
-  const { uptimes, myStats } = useUptime(undefined, params);
-
-  const isInitialLoading = (uptimes.isLoading && !uptimes.data) || (myStats.isLoading && !myStats.data);
-
-  if (isInitialLoading) {
-    return <LoadingState message="Cargando monitoreos..." />;
-  }
-
-  if (uptimes.isError || myStats.isError) {
-    return (
-      <ErrorState
-        title="Error al cargar el dashboard"
-        description="No pudimos obtener los datos de tus monitoreos. Intentá nuevamente."
-        onRetry={() => {
-          uptimes.refetch();
-          myStats.refetch();
-        }}
-      />
-    );
-  }
-
+const ServerStatusDashboardPage = () => {
   return (
-    <div className="dashboard-servers">
-      <div className="title-button">
-        <div className="title-home">
-       <h2>Estado de servidores</h2>
-        </div>
-      </div>
-
-      <StatusUptimes data={uptimes.data!} />
-
-    </div>
+    <ServerStatusDashboardView />
   )
 }
 
-export default ServerStatusDashboard;
+export default ServerStatusDashboardPage;

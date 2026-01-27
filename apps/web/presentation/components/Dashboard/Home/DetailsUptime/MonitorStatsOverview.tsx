@@ -1,8 +1,9 @@
 'use client';
 
 import { GetStatsLogsByUptimeIdInterface } from '@/infraestructure/interfaces';
+import { colorByPercentage, formatInterval } from '@/presentation/utils';
+
 import './MonitorStatsOverview.scss';
-import { formatInterval } from '@/presentation/utils';
 
 interface MonitorStatsOverviewProps {
     monitor: GetStatsLogsByUptimeIdInterface;
@@ -29,14 +30,14 @@ const MonitorStatsOverview = ({ monitor, stats24h }: MonitorStatsOverviewProps) 
         </div>
 
         <div className="stat-card">
-          <span className="label">Ultimo chequeo</span>
+          <span className="label">Último chequeo</span>
           <span className="value"> {monitor?.monitor?.lastCheck.toLocaleString().split("T")[0]} </span>
           <span className="sub">Chequeado cada {formatInterval(monitor?.monitor?.frequency)}</span>
         </div>
 
         <div className="stat-card wide">
           <div className="row-between">
-            <span className="label">Ultimas 24 horas</span>
+            <span className="label">Últimas 24 horas</span>
             <span className="percentage"> {monitor?.stats?.last24Hours?.healthPercentage}% </span>
           </div>
 
@@ -54,32 +55,49 @@ const MonitorStatsOverview = ({ monitor, stats24h }: MonitorStatsOverviewProps) 
 
       <div className="stats-row">
         <div className="stat-card">
-          <span className="label">Ultimas 24 horas</span>
-          <span className="percentage down"> {monitor?.stats?.last24Hours?.healthPercentage}% </span>
+          <span className="label">Últimas 24 horas</span>
+          <span 
+           style={{ color: colorByPercentage(monitor?.stats?.last24Hours?.healthPercentage) }}
+          className="percentage down"> 
+            {monitor?.stats?.last24Hours?.healthPercentage}% 
+            </span>
           <span className="sub">
             {monitor?.stats?.last24Hours?.incidentCount} incidente/s, {monitor?.stats?.last24Hours?.downtimeFormatted} down
           </span>
         </div>
 
         <div className="stat-card">
-          <span className="label">Ultimos 7 dias</span>
-          <span className="percentage down"> {monitor?.stats?.last7Days?.healthPercentage}% </span>
+          <span className="label">Últimos 7 dias</span>
+          <span 
+           style={{ color: colorByPercentage(monitor?.stats?.last7Days?.healthPercentage) }}
+          className="percentage down"> 
+            {monitor?.stats?.last7Days?.healthPercentage}% 
+            </span>
           <span className="sub">
             {monitor?.stats?.last7Days?.incidentCount} incidente/s, {monitor?.stats?.last7Days?.downtimeFormatted} down
           </span>
         </div>
 
         <div className="stat-card">
-          <span className="label">Ultimos 30 dias</span>
-          <span className="percentage down"> {monitor?.stats?.last30Days?.healthPercentage}% </span>
+          <span className="label">Últimos 30 dias</span>
+          <span 
+           style={{ color: colorByPercentage(monitor?.stats?.last30Days?.healthPercentage) }}
+          className="percentage down"
+          > 
+            {monitor?.stats?.last30Days?.healthPercentage}% 
+            </span>
           <span className="sub">
             {monitor?.stats?.last30Days?.incidentCount} incidente/s, {monitor?.stats?.last30Days?.downtimeFormatted} down
           </span>
         </div>
 
         <div className="stat-card">
-          <span className="label">Ultimos 365 dias</span>
-          <span className="percentage down"> {monitor?.stats?.last365Days?.healthPercentage}% </span>
+          <span className="label">Últimos 365 dias</span>
+          <span 
+           style={{ color: colorByPercentage(monitor?.stats?.last365Days?.healthPercentage) }}
+          className="percentage down"> 
+            {monitor?.stats?.last365Days?.healthPercentage}%
+             </span>
           <span className="sub">
             {monitor?.stats?.last365Days?.incidentCount} incidente/s, {monitor?.stats?.last365Days?.downtimeFormatted} down
           </span>

@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:backend": "cd apps/backend-uptime && npm run start:dev",
+    "dev:frontend": "cd apps/web && npm run dev",
+    "build-test:frontend": "cd apps/web && npm run build && npm test",
+    "build-test:backend": "cd apps/backend-uptime && npm run build && npm test",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "docker:backend": "cd apps/backend-uptime && docker-compose up --build -d backend-uptime"

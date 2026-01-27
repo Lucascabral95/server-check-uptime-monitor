@@ -120,9 +120,14 @@ const StatusUptimes = ({ data }: IncidentsListProps) => {
 
             <div className="info">
               <strong>{server.name}</strong>
-              <span className="sub">
+              <a 
+              href={server.url} 
+              target="_blank" rel="noopener noreferrer"
+               className="sub"
+               onClick={(e) => e.stopPropagation()}
+               >
                 {server.url}
-              </span>
+              </a>
             </div>
           </div>
 
