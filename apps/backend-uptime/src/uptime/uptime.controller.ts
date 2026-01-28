@@ -40,6 +40,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { EmailService } from 'src/email/email.service';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
 @ApiTags('Uptime')
 @ApiBearerAuth('jwt-auth')
@@ -52,6 +53,7 @@ export class UptimeController {
     private readonly emailService: EmailService,
   ) {}
   
+  @Throttle({ short: {} })
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Crear monitor de uptime' })
@@ -60,6 +62,7 @@ export class UptimeController {
     return this.uptimeService.create(createUptimeDto, req.user.dbUserId);
   }
   
+  @Throttle({ medium: {} })
   @Get()
   @ApiOperation({ summary: 'Listar monitores con paginación' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -79,6 +82,7 @@ export class UptimeController {
     return this.uptimeService.findAll(paginationDto);
   }
 
+  @SkipThrottle()
   @Get('stats')
   @ApiOperation({ summary: 'Obtener estadísticas internas del sistema' })
     getStats() {
@@ -90,6 +94,7 @@ export class UptimeController {
         };
     }
 
+  @Throttle({ medium: {} })
   @Get('stats/user')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -98,13 +103,15 @@ export class UptimeController {
     return this.uptimeService.getStatsByUserId(req.user.dbUserId);
   }
 
-    @Get('flush')
-    @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
-    async forceFlush() {
-        await this.pingLogBufferService.forceFlush();
-        return { message: 'Buffer flushed successfully' };
+  @SkipThrottle()
+  @Get('flush')
+  @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
+  async forceFlush() {
+      await this.pingLogBufferService.forceFlush();
+      return { message: 'Buffer flushed successfully' };
     }
   
+  @Throttle({ medium: {} })
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -115,6 +122,7 @@ export class UptimeController {
      return this.uptimeService.findOne(id, req.user.dbUserId);
   }
 
+  @Throttle({ medium: {} })
   @Get('logs/:uptimeId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -125,6 +133,7 @@ export class UptimeController {
     return this.uptimeService.findStatsLogsByUptimeId(uptimeId, req.user.dbUserId);
   }
 
+  @Throttle({ medium: {} })
   @Get('incidents/user')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -142,6 +151,7 @@ export class UptimeController {
     return this.uptimeService.getIncidentsByUserId(req.user.dbUserId, paginationDto);
   }
 
+  @Throttle({ medium: {} })
   @Get('incidents/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -152,6 +162,7 @@ export class UptimeController {
     return this.uptimeService.getIncidents(id, req.user.dbUserId);
   }
   
+  @Throttle({ medium: {} })
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -162,6 +173,7 @@ export class UptimeController {
     return this.uptimeService.update(id, updateUptimeDto, req.user.dbUserId);
   }
   
+  @Throttle({ short: {} })
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Eliminar monitor' })
