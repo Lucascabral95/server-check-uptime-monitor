@@ -21,7 +21,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (publicRoutesFinally.includes(pathname) && authToken && pathname !== '/') {
+  if (publicRoutesFinally.includes(pathname) && authToken) {
+    return NextResponse.redirect(new URL(ROUTE_DEFAULT_IS_AUTHENTICATED, request.url));
+  }
+
+  if (pathname === '/' && authToken) {
     return NextResponse.redirect(new URL(ROUTE_DEFAULT_IS_AUTHENTICATED, request.url));
   }
 

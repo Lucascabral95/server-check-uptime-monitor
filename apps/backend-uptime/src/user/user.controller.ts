@@ -2,12 +2,12 @@ import {
   Controller,
   Get,
   Body,
-     Patch,
-      Param,
-       Delete,
-        UseGuards,
-         Request,
-         } from '@nestjs/common';
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -15,16 +15,17 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { 
   DataUserGetDto,
-   RequestUserDto,
-    UpdateUserDto,
-   } from './dto';
+  RequestUserDto,
+  UpdateUserDto,
+} from './dto';
 import { 
   ApiTags,
-   ApiBearerAuth,
-    ApiOperation,
-     ApiResponse,
-      ApiParam,
-     } from '@nestjs/swagger';
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+} from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags("Users")
 @ApiBearerAuth("jwt-auth")
@@ -33,15 +34,17 @@ import {
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Throttle({ medium: {} })
   @Get()
   @Roles(Role.ADMIN)
-   @ApiOperation({ summary: 'Obtener todos los usuarios' })
+  @ApiOperation({ summary: 'Obtener todos los usuarios' })
   @ApiResponse({ status: 200, type: [DataUserGetDto] })
   @ApiResponse({ status: 404, description: 'No users found' })
   findAll() {
     return this.userService.findAll();
   }
   
+  @Throttle({ medium: {} })
   @Get(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Obtener usuario por ID' })
@@ -56,6 +59,7 @@ export class UserController {
     return this.userService.findOne(id, req.user.dbUserId);
   }
   
+  @Throttle({ short: {} })
   @Patch(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Actualizar usuario' })
@@ -65,6 +69,7 @@ export class UserController {
     return this.userService.update(id, updateUserDto, req.user.dbUserId);
   }
   
+  @Throttle({ short: {} })
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Eliminar usuario' })

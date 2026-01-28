@@ -1,9 +1,28 @@
-import { Controller, Get, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import { 
+  Controller,
+  Get,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  Query,
+ } from '@nestjs/common';
+import { 
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+ } from '@nestjs/swagger';
+ import { 
+  SkipThrottle,
+  Throttle,
+ } from '@nestjs/throttler';
 import { PingLogService } from './ping-log.service';
 import { RequestUserDto } from 'src/user/dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetPingLogDto } from './dto';
 
 @ApiTags('Ping Logs')
@@ -18,6 +37,7 @@ export class PingLogController {
   //   return this.pingLogService.update(id, updatePingLogDto);
   // }
 
+  @Throttle({ short: {} })
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar PingLog por ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -27,6 +47,7 @@ export class PingLogController {
   }
 
   // GET for all ping logs
+  @SkipThrottle()
   @Get()
   @ApiOperation({ summary: 'Obtener todos los PingLogs (admin/debug)' })
   @ApiResponse({ status: 200, type: [GetPingLogDto] })
@@ -35,6 +56,7 @@ export class PingLogController {
   }
 
   // Obtener ping logs de monitors creados por un usuario
+  @Throttle({ medium: {} })
   @Get("user/my-logs")
   @ApiOperation({ summary: 'Obtener PingLogs de los monitores del usuario autenticado' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -44,6 +66,7 @@ export class PingLogController {
     return this.pingLogService.findAllPingLogsByUser(req.user.dbUserId, paginationDto);
   }
 
+  @Throttle({ medium: {} })
   @Get('id/:id')
   @ApiOperation({ summary: 'Obtener PingLog por ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

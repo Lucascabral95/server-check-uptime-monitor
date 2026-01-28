@@ -4,6 +4,8 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   BadRequestException,
   NotFoundException,
+  InternalServerErrorException,
+  ConflictException,
 } from '@nestjs/common';
 import * as errors from 'src/errors';
 import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
@@ -60,25 +62,207 @@ describe('PingLogService', () => {
 
       const result = await service.create(dto);
 
-      expect(prisma.pingLog.create).toHaveBeenCalled();
+      expect(prisma.pingLog.create).toHaveBeenCalledWith({
+        data: {
+          monitorId: 'monitor-1',
+          statusCode: 200,
+          durationMs: 150,
+          success: true,
+          error: null,
+          timestamp: expect.any(Date),
+        },
+      });
       expect(result).toBe('PingLog created successfully');
     });
 
-    it('should throw prisma handled error', async () => {
+    it('should create a ping log with error message', async () => {
       const dto = {
         monitorId: 'monitor-1',
         statusCode: 500,
         durationMs: 300,
         success: false,
-        error: 'timeout',
+        error: 'Connection timeout',
       };
 
-      const prismaError = new Error('Prisma error');
+      mockPrismaService.pingLog.create.mockResolvedValue({});
+
+      const result = await service.create(dto);
+
+      expect(prisma.pingLog.create).toHaveBeenCalledWith({
+        data: {
+          monitorId: 'monitor-1',
+          statusCode: 500,
+          durationMs: 300,
+          success: false,
+          error: 'Connection timeout',
+          timestamp: expect.any(Date),
+        },
+      });
+      expect(result).toBe('PingLog created successfully');
+    });
+
+    it('should throw BadRequestException on Prisma validation error (P2003)', async () => {
+      const dto = {
+        monitorId: 'invalid-monitor-id',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const prismaError = {
+        code: 'P2003',
+        message: 'Foreign key constraint failed',
+        meta: { field_name: 'monitorId' },
+      };
       mockPrismaService.pingLog.create.mockRejectedValue(prismaError);
 
-      mockedHandlePrismaError.mockReturnValue(new BadRequestException());
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new BadRequestException(`Invalid reference provided for field 'monitorId' on PingLog`);
+      });
 
       await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw NotFoundException on Prisma record not found error (P2025)', async () => {
+      const dto = {
+        monitorId: 'non-existent-monitor',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const prismaError = {
+        code: 'P2025',
+        message: 'Record not found',
+      };
+      mockPrismaService.pingLog.create.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new NotFoundException('PingLog not found');
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw InternalServerErrorException on Prisma connection timeout (P2024)', async () => {
+      const dto = {
+        monitorId: 'monitor-1',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const prismaError = {
+        code: 'P2024',
+        message: 'Connection timeout',
+      };
+      mockPrismaService.pingLog.create.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('Database connection timeout. Please try again later.');
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw ConflictException on Prisma transaction conflict (P2034)', async () => {
+      const dto = {
+        monitorId: 'monitor-1',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const prismaError = {
+        code: 'P2034',
+        message: 'Transaction conflict',
+      };
+      mockPrismaService.pingLog.create.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new ConflictException('Transaction failed due to concurrent updates on PingLog. Please retry.');
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(ConflictException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw InternalServerErrorException on unknown Prisma error', async () => {
+      const dto = {
+        monitorId: 'monitor-1',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const prismaError = {
+        code: 'P9999',
+        message: 'Unknown error',
+      };
+      mockPrismaService.pingLog.create.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('An error occurred while processing PingLog');
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should rethrow BadRequestException if already thrown', async () => {
+      const dto = {
+        monitorId: 'monitor-1',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const badRequestError = new BadRequestException('Invalid input');
+      mockPrismaService.pingLog.create.mockRejectedValue(badRequestError);
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow NotFoundException if already thrown', async () => {
+      const dto = {
+        monitorId: 'monitor-1',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const notFoundError = new NotFoundException('Not found');
+      mockPrismaService.pingLog.create.mockRejectedValue(notFoundError);
+
+      await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow InternalServerErrorException if already thrown', async () => {
+      const dto = {
+        monitorId: 'monitor-1',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      const internalError = new InternalServerErrorException('Internal error');
+      mockPrismaService.pingLog.create.mockRejectedValue(internalError);
+
+      await expect(service.create(dto)).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
     });
   });
 
@@ -90,7 +274,7 @@ describe('PingLogService', () => {
       const result = await service.findAll();
 
       expect(result).toEqual(logs);
-      expect(prisma.pingLog.findMany).toHaveBeenCalled();
+      expect(prisma.pingLog.findMany).toHaveBeenCalledWith();
     });
 
     it('should return empty array if no logs found', async () => {
@@ -99,9 +283,54 @@ describe('PingLogService', () => {
       const result = await service.findAll();
 
       expect(result).toEqual([]);
-      expect(prisma.pingLog.findMany).toHaveBeenCalled();
+      expect(prisma.pingLog.findMany).toHaveBeenCalledWith();
     });
 
+    it('should handle Prisma connection timeout error (P2024)', async () => {
+      const prismaError = {
+        code: 'P2024',
+        message: 'Connection timeout',
+      };
+      mockPrismaService.pingLog.findMany.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('Database connection timeout. Please try again later.');
+      });
+
+      await expect(service.findAll()).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should rethrow NotFoundException if already thrown', async () => {
+      const notFoundError = new NotFoundException('No ping logs found');
+      mockPrismaService.pingLog.findMany.mockRejectedValue(notFoundError);
+
+      await expect(service.findAll()).rejects.toThrow(NotFoundException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow InternalServerErrorException if already thrown', async () => {
+      const internalError = new InternalServerErrorException('Database error');
+      mockPrismaService.pingLog.findMany.mockRejectedValue(internalError);
+
+      await expect(service.findAll()).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException on unknown Prisma error', async () => {
+      const prismaError = {
+        code: 'P9999',
+        message: 'Unknown database error',
+      };
+      mockPrismaService.pingLog.findMany.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('An error occurred while processing PingLog');
+      });
+
+      await expect(service.findAll()).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
   });
 
   describe('findOne', () => {
@@ -121,6 +350,83 @@ describe('PingLogService', () => {
       mockPrismaService.pingLog.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne('123')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('123')).rejects.toThrow('PingLog with id 123 not found');
+    });
+
+    it('should throw NotFoundException on Prisma record not found error (P2025)', async () => {
+      const prismaError = {
+        code: 'P2025',
+        message: 'Record not found',
+      };
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new NotFoundException('PingLog not found');
+      });
+
+      await expect(service.findOne('123')).rejects.toThrow(NotFoundException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw BadRequestException on Prisma validation error (P2009)', async () => {
+      const prismaError = {
+        code: 'P2009',
+        message: 'Query validation failed',
+      };
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new BadRequestException('Failed to validate the query for PingLog. Please check your input.');
+      });
+
+      await expect(service.findOne('invalid-id')).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw InternalServerErrorException on Prisma connection timeout (P2024)', async () => {
+      const prismaError = {
+        code: 'P2024',
+        message: 'Connection timeout',
+      };
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('Database connection timeout. Please try again later.');
+      });
+
+      await expect(service.findOne('123')).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should rethrow BadRequestException if already thrown', async () => {
+      const badRequestError = new BadRequestException('Invalid ID format');
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(badRequestError);
+
+      await expect(service.findOne('invalid')).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow InternalServerErrorException if already thrown', async () => {
+      const internalError = new InternalServerErrorException('Database error');
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(internalError);
+
+      await expect(service.findOne('123')).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException on unknown Prisma error', async () => {
+      const prismaError = {
+        code: 'P9999',
+        message: 'Unknown error',
+      };
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('An error occurred while processing PingLog');
+      });
+
+      await expect(service.findOne('123')).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
     });
   });
 
@@ -139,14 +445,173 @@ describe('PingLogService', () => {
 
       const result = await service.update('1', dto);
 
-      expect(prisma.pingLog.update).toHaveBeenCalled();
+      expect(prisma.pingLog.update).toHaveBeenCalledWith({
+        where: { id: '1' },
+        data: {
+          monitorId: 'monitor-2',
+          statusCode: 201,
+          durationMs: 100,
+          success: true,
+          error: null,
+          timestamp: expect.any(Date),
+        },
+      });
+      expect(result).toBe('PingLog updated successfully');
+    });
+
+    it('should update only some fields of a ping log', async () => {
+      const dto = {
+        statusCode: 204,
+        success: true,
+      };
+
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      mockPrismaService.pingLog.update.mockResolvedValue({});
+
+      const result = await service.update('1', dto);
+
+      expect(prisma.pingLog.update).toHaveBeenCalledWith({
+        where: { id: '1' },
+        data: {
+          statusCode: 204,
+          success: true,
+          timestamp: expect.any(Date),
+        },
+      });
       expect(result).toBe('PingLog updated successfully');
     });
 
     it('should throw NotFoundException if ping log does not exist', async () => {
       mockPrismaService.pingLog.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('1', {} as any)).rejects.toThrow(NotFoundException);
+      await expect(service.update('non-existent', {} as any)).rejects.toThrow(NotFoundException);
+      await expect(service.update('non-existent', {} as any)).rejects.toThrow('PingLog with id non-existent not found');
+      expect(prisma.pingLog.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException on Prisma foreign key constraint error (P2003)', async () => {
+      const dto = {
+        monitorId: 'invalid-monitor-id',
+        statusCode: 200,
+        durationMs: 150,
+        success: true,
+        error: null,
+      };
+
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2003',
+        message: 'Foreign key constraint failed',
+        meta: { field_name: 'monitorId' },
+      };
+      mockPrismaService.pingLog.update.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new BadRequestException('Invalid reference provided for field \'monitorId\' on PingLog');
+      });
+
+      await expect(service.update('1', dto)).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw NotFoundException on Prisma record not found error (P2025)', async () => {
+      const dto = {
+        statusCode: 200,
+        success: true,
+      };
+
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2025',
+        message: 'Record not found',
+      };
+      mockPrismaService.pingLog.update.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new NotFoundException('PingLog not found');
+      });
+
+      await expect(service.update('1', dto)).rejects.toThrow(NotFoundException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw InternalServerErrorException on Prisma connection timeout (P2024)', async () => {
+      const dto = {
+        statusCode: 200,
+        success: true,
+      };
+
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2024',
+        message: 'Connection timeout',
+      };
+      mockPrismaService.pingLog.update.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('Database connection timeout. Please try again later.');
+      });
+
+      await expect(service.update('1', dto)).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw ConflictException on Prisma transaction conflict (P2034)', async () => {
+      const dto = {
+        statusCode: 200,
+        success: true,
+      };
+
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2034',
+        message: 'Transaction conflict',
+      };
+      mockPrismaService.pingLog.update.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new ConflictException('Transaction failed due to concurrent updates on PingLog. Please retry.');
+      });
+
+      await expect(service.update('1', dto)).rejects.toThrow(ConflictException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should rethrow BadRequestException if already thrown', async () => {
+      const badRequestError = new BadRequestException('Invalid update data');
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(badRequestError);
+
+      await expect(service.update('1', {} as any)).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow InternalServerErrorException if already thrown', async () => {
+      const internalError = new InternalServerErrorException('Update failed');
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(internalError);
+
+      await expect(service.update('1', {} as any)).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException on unknown Prisma error', async () => {
+      const dto = {
+        statusCode: 200,
+        success: true,
+      };
+
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P9999',
+        message: 'Unknown error',
+      };
+      mockPrismaService.pingLog.update.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('An error occurred while processing PingLog');
+      });
+
+      await expect(service.update('1', dto)).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
     });
   });
 
@@ -170,7 +635,89 @@ describe('PingLogService', () => {
     it('should throw NotFoundException if ping log does not exist', async () => {
       mockPrismaService.pingLog.findUnique.mockResolvedValue(null);
 
+      await expect(service.remove('non-existent')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('non-existent')).rejects.toThrow('PingLog with id non-existent not found');
+      expect(prisma.pingLog.delete).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException on Prisma record not found error (P2025)', async () => {
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2025',
+        message: 'Record not found',
+      };
+      mockPrismaService.pingLog.delete.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new NotFoundException('PingLog not found');
+      });
+
       await expect(service.remove('1')).rejects.toThrow(NotFoundException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw InternalServerErrorException on Prisma connection timeout (P2024)', async () => {
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2024',
+        message: 'Connection timeout',
+      };
+      mockPrismaService.pingLog.delete.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('Database connection timeout. Please try again later.');
+      });
+
+      await expect(service.remove('1')).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should throw ConflictException on Prisma transaction conflict (P2034)', async () => {
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P2034',
+        message: 'Transaction conflict',
+      };
+      mockPrismaService.pingLog.delete.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new ConflictException('Transaction failed due to concurrent updates on PingLog. Please retry.');
+      });
+
+      await expect(service.remove('1')).rejects.toThrow(ConflictException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
+    });
+
+    it('should rethrow BadRequestException if already thrown', async () => {
+      const badRequestError = new BadRequestException('Cannot delete');
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(badRequestError);
+
+      await expect(service.remove('1')).rejects.toThrow(BadRequestException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow InternalServerErrorException if already thrown', async () => {
+      const internalError = new InternalServerErrorException('Delete failed');
+      mockPrismaService.pingLog.findUnique.mockRejectedValue(internalError);
+
+      await expect(service.remove('1')).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).not.toHaveBeenCalled();
+    });
+
+    it('should throw InternalServerErrorException on unknown Prisma error', async () => {
+      mockPrismaService.pingLog.findUnique.mockResolvedValue({ id: '1' });
+      const prismaError = {
+        code: 'P9999',
+        message: 'Unknown error',
+      };
+      mockPrismaService.pingLog.delete.mockRejectedValue(prismaError);
+
+      mockedHandlePrismaError.mockImplementation((error, entityName) => {
+        throw new InternalServerErrorException('An error occurred while processing PingLog');
+      });
+
+      await expect(service.remove('1')).rejects.toThrow(InternalServerErrorException);
+      expect(mockedHandlePrismaError).toHaveBeenCalledWith(prismaError, 'PingLog');
     });
   });
 
