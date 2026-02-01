@@ -39,7 +39,6 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { EmailService } from 'src/email/email.service';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
 @ApiTags('Uptime')
@@ -50,7 +49,6 @@ export class UptimeController {
     private readonly uptimeService: UptimeService,
     private readonly httpPoolService: HttpPoolService,
     private readonly pingLogBufferService: PingLogBufferService,
-    private readonly emailService: EmailService,
   ) {}
   
   @Throttle({ short: {} })
@@ -110,7 +108,35 @@ export class UptimeController {
       await this.pingLogBufferService.forceFlush();
       return { message: 'Buffer flushed successfully' };
     }
-  
+
+  @SkipThrottle()
+  @Post('queue/clear')
+  @ApiOperation({ summary: 'Limpiar todos los jobs de la cola (útil después de db:reset o db:seed)' })
+  @ApiResponse({ status: 200, schema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      removedCount: { type: 'number' }
+    }
+  }})
+  async clearQueueJobs() {
+    return this.uptimeService.clearAllQueueJobs();
+  }
+
+  @SkipThrottle()
+  @Post('queue/sync')
+  @ApiOperation({ summary: 'Sincronizar jobs de la cola con monitores en BD - elimina huérfanos y crea faltantes' })
+  @ApiResponse({ status: 200, schema: {
+    type: 'object',
+    properties: {
+      orphanedRemoved: { type: 'number' },
+      jobsCreated: { type: 'number' }
+    }
+  }})
+  async syncQueueJobs() {
+    return this.uptimeService.syncQueueJobs();
+  }
+
   @Throttle({ medium: {} })
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)

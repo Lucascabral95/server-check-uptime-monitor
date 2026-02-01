@@ -9,4 +9,8 @@ export class AppService {
   health(): string {
     return 'Health is OK';
   }
+
+  activatedSeed(): string {
+    return 'Seed activated';
+  }
 }

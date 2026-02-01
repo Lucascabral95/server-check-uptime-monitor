@@ -66,7 +66,9 @@ export class UptimeProcessor extends WorkerHost {
         }
 
         if (!monitor) {
-            this.logger.warn(`Monitor not found: ${monitorId}`);
+            this.logger.warn(`Monitor not found: ${monitorId}. Removing orphaned job from queue.`);
+            // Remove the orphaned job from the queue to prevent repeated warnings
+            await job.remove();
             return;
         }
 

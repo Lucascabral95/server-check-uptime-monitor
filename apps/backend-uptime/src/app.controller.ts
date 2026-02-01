@@ -14,4 +14,9 @@ export class AppController {
   health(): string {
     return this.appService.health();
   } 
+
+  @Get("activate-seed")
+  activateSeed(): string {
+    return this.appService.activatedSeed();
+  }
 }

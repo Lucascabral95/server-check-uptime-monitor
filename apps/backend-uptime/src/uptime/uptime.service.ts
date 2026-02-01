@@ -350,6 +350,89 @@ export class UptimeService {
         }
     }
 
+    // Limpia todos los jobs de la cola (útil después de un db:reset o db:seed)
+    async clearAllQueueJobs(): Promise<{ message: string; removedCount: number }> {
+        try {
+            // Obtener todos los jobs repetitivos de la cola
+            const repeatJobs = await this.monitorQueue.getRepeatableJobs();
+
+            // Eliminar cada job repetitivo
+            for (const job of repeatJobs) {
+                await this.monitorQueue.removeRepeatableByKey(job.key);
+            }
+
+            // También limpiar jobs normales (no repetitivos) que puedan estar en espera
+            const waitingJobs = await this.monitorQueue.getJobs(['waiting', 'delayed'], 0, 1000);
+            for (const job of waitingJobs) {
+                await job.remove();
+            }
+
+            const removedCount = repeatJobs.length + waitingJobs.length;
+            this.logger.log(`Cleared ${removedCount} jobs from queue`);
+
+            return {
+                message: 'Queue cleared successfully',
+                removedCount,
+            };
+        } catch (error) {
+            this.logger.error(`Error clearing queue: ${error.message}`);
+            throw new InternalServerErrorException('Failed to clear queue');
+        }
+    }
+
+    // Sincroniza los jobs de la cola con los monitores activos en la base de datos
+    // Elimina jobs huérfanos y crea jobs faltantes
+    async syncQueueJobs(): Promise<{ orphanedRemoved: number; jobsCreated: number }> {
+        try {
+            // Obtener todos los monitores activos de la BD
+            const activeMonitors = await this.prisma.monitor.findMany({
+                where: { isActive: true },
+                select: { id: true, frequency: true, url: true },
+            });
+
+            // Obtener todos los jobs repetitivos de la cola
+            const repeatJobs = await this.monitorQueue.getRepeatableJobs();
+
+            // Extraer monitorIds de los jobs en la cola
+            const jobMonitorIds = new Set(
+                repeatJobs
+                    .map(job => {
+                        const match = job.name.match(/monitor:([a-f0-9-]+)/);
+                        return match ? match[1] : null;
+                    })
+                    .filter((id): id is string => id !== null)
+            );
+
+            // Encontrar jobs huérfanos (jobs en cola sin monitor en BD)
+            const activeMonitorIds = new Set(activeMonitors.map(m => m.id));
+            const orphanedIds = Array.from(jobMonitorIds).filter(id => !activeMonitorIds.has(id));
+
+            // Eliminar jobs huérfanos
+            for (const jobId of orphanedIds) {
+                await this.removeMonitorJob(jobId);
+            }
+
+            // Encontrar monitores sin job y crearlos
+            let jobsCreated = 0;
+            for (const monitor of activeMonitors) {
+                if (!jobMonitorIds.has(monitor.id)) {
+                    await this.createMonitorJob(monitor.id, monitor.url, monitor.frequency);
+                    jobsCreated++;
+                }
+            }
+
+            this.logger.log(`Queue sync: ${orphanedIds.length} orphaned jobs removed, ${jobsCreated} jobs created`);
+
+            return {
+                orphanedRemoved: orphanedIds.length,
+                jobsCreated,
+            };
+        } catch (error) {
+            this.logger.error(`Error syncing queue jobs: ${error.message}`);
+            throw new InternalServerErrorException('Failed to sync queue jobs');
+        }
+    }
+
     ////
     async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
     try {
