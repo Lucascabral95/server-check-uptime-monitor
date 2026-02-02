@@ -3,6 +3,7 @@ import { UptimeController } from './uptime.controller';
 import { UptimeService } from './uptime.service';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { MonitorOwnerGuard } from 'src/auth/guards/monitor-owner.guard';
 import { HttpPoolService } from './services/http-pool.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
 import { EmailService } from 'src/email/email.service';
@@ -69,6 +70,8 @@ describe('UptimeController', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(RolesGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(MonitorOwnerGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .compile();
 

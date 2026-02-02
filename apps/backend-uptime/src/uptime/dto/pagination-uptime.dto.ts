@@ -69,6 +69,11 @@ export class PaginationUptimeDto {
     @IsBoolean()
     @Type(() => Boolean)
     includeInactive?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    email?: string;
 }
 
 export class PaginatedResponseDto<T> {

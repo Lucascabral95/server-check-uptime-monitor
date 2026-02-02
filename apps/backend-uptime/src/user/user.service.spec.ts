@@ -332,5 +332,205 @@ describe('UserService', () => {
 
       expect(result).toBeUndefined();
     });
+
+    it('should handle Prisma errors properly', async () => {
+      const email = 'test@example.com';
+      const prismaError = new Error('Prisma connection error');
+      (prismaError as any).code = 'P1001';
+
+      mockPrismaService.user.findUnique.mockRejectedValue(prismaError);
+
+      await expect(service.findUserByEmail(email)).rejects.toThrow();
+    });
+  });
+
+  describe('findOrCreateByCognitoSub', () => {
+    it('should return existing user when found by cognitoSub', async () => {
+      const cognitoSub = 'cognito-sub-123';
+      const existingUser = { id: 'db-id-123', email: 'existing@example.com', role: Role.USER, cognitoSub };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(existingUser);
+
+      const result = await service.findOrCreateByCognitoSub(cognitoSub);
+
+      expect(result).toEqual(existingUser);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { cognitoSub },
+      });
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('should create new user with email when not found', async () => {
+      const cognitoSub = 'new-cognito-sub';
+      const email = 'new@example.com';
+      const newUser = { id: 'db-id-456', email, role: Role.USER, cognitoSub };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue(newUser);
+
+      const result = await service.findOrCreateByCognitoSub(cognitoSub, email);
+
+      expect(result).toEqual(newUser);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { cognitoSub },
+      });
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+        data: {
+          email,
+          cognitoSub,
+          role: Role.USER,
+        },
+      });
+    });
+
+    it('should throw BadRequestException when email is not provided for new user creation', async () => {
+      const cognitoSub = 'new-cognito-sub';
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOrCreateByCognitoSub(cognitoSub)).rejects.toThrow(BadRequestException);
+      await expect(service.findOrCreateByCognitoSub(cognitoSub)).rejects.toThrow('Email is required for user creation');
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when email is undefined for new user creation', async () => {
+      const cognitoSub = 'new-cognito-sub';
+
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOrCreateByCognitoSub(cognitoSub, undefined)).rejects.toThrow(BadRequestException);
+      await expect(service.findOrCreateByCognitoSub(cognitoSub, undefined)).rejects.toThrow('Email is required for user creation');
+    });
+  });
+
+  describe('findOne - error handling', () => {
+    it('should handle Prisma errors properly', async () => {
+      const userId = 'user-id-123';
+      const currentUserId = 'user-id-123';
+      const prismaError = new Error('Prisma connection error');
+      (prismaError as any).code = 'P1001';
+
+      mockPrismaService.user.findUnique.mockRejectedValue(prismaError);
+
+      await expect(service.findOne(userId, currentUserId)).rejects.toThrow();
+    });
+  });
+
+  describe('update - additional tests', () => {
+    it('should throw ForbiddenException when user is not the owner and not ADMIN', async () => {
+      const userId = 'user-id-456';
+      const currentUserId = 'user-id-123';
+      const updateUserDto: UpdateUserDto = {
+        email: 'updated@example.com',
+      };
+      const otherUser = { id: userId, email: 'other@example.com', role: Role.USER };
+      const regularUser = { id: currentUserId, email: 'user@example.com', role: Role.USER };
+
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(otherUser);
+      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(regularUser);
+
+      await expect(service.update(userId, updateUserDto, currentUserId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should allow ADMIN to update any user', async () => {
+      const userId = 'user-id-456';
+      const currentUserId = 'admin-id-123';
+      const updateUserDto: UpdateUserDto = {
+        email: 'updated@example.com',
+      };
+      const targetUser = { id: userId, email: 'other@example.com', role: Role.USER };
+      const adminUser = { id: currentUserId, email: 'admin@example.com', role: Role.ADMIN };
+      const updatedUser = { id: userId, email: 'updated@example.com', role: Role.USER };
+
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(targetUser).mockResolvedValueOnce(null);
+      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(adminUser);
+      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+
+      const result = await service.update(userId, updateUserDto, currentUserId);
+
+      expect(result).toEqual(updatedUser);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: updateUserDto,
+      });
+    });
+
+    it('should handle Prisma errors during update', async () => {
+      const userId = 'user-id-123';
+      const currentUserId = 'user-id-123';
+      const updateUserDto: UpdateUserDto = {
+        email: 'updated@example.com',
+      };
+      const currentUser = { id: userId, email: 'user@example.com', role: Role.USER };
+      const prismaError = new Error('Prisma connection error');
+      (prismaError as any).code = 'P1001';
+
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(currentUser).mockResolvedValueOnce(null);
+      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(currentUser);
+      mockPrismaService.user.update.mockRejectedValue(prismaError);
+
+      await expect(service.update(userId, updateUserDto, currentUserId)).rejects.toThrow();
+    });
+  });
+
+  describe('remove - additional tests', () => {
+    it('should throw ForbiddenException when user is not the owner and not ADMIN', async () => {
+      const userId = 'user-id-456';
+      const currentUserId = 'user-id-123';
+      const otherUser = { id: userId, email: 'other@example.com', role: Role.USER };
+      const regularUser = { id: currentUserId, email: 'user@example.com', role: Role.USER };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(otherUser);
+      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(regularUser);
+
+      await expect(service.remove(userId, currentUserId)).rejects.toThrow(ForbiddenException);
+      await expect(service.remove(userId, currentUserId)).rejects.toThrow('You can only access your own user information');
+      expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('should allow ADMIN to delete any user', async () => {
+      const userId = 'user-id-456';
+      const currentUserId = 'admin-id-123';
+      const targetUser = { id: userId, email: 'other@example.com', role: Role.USER };
+      const adminUser = { id: currentUserId, email: 'admin@example.com', role: Role.ADMIN };
+      const deletedUser = { id: userId, email: 'other@example.com', role: Role.USER };
+
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(targetUser);
+      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(adminUser);
+      mockPrismaService.user.delete.mockResolvedValue(deletedUser);
+
+      const result = await service.remove(userId, currentUserId);
+
+      expect(result).toEqual(deletedUser);
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+        where: { id: userId },
+      });
+    });
+
+    it('should handle Prisma errors during deletion', async () => {
+      const userId = 'user-id-123';
+      const currentUserId = 'user-id-123';
+      const currentUser = { id: userId, email: 'user@example.com', role: Role.USER };
+      const prismaError = new Error('Prisma connection error');
+      (prismaError as any).code = 'P1001';
+
+      mockPrismaService.user.findUnique.mockResolvedValue(currentUser);
+      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(currentUser);
+      mockPrismaService.user.delete.mockRejectedValue(prismaError);
+
+      await expect(service.remove(userId, currentUserId)).rejects.toThrow();
+    });
+  });
+
+  describe('findAll - error handling', () => {
+    it('should handle Prisma errors properly', async () => {
+      const prismaError = new Error('Prisma connection error');
+      (prismaError as any).code = 'P1001';
+
+      mockPrismaService.user.findMany.mockRejectedValue(prismaError);
+
+      await expect(service.findAll()).rejects.toThrow();
+    });
   });
 });

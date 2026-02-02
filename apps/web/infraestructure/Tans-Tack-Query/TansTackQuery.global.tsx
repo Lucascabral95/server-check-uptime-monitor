@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+import { setQueryClient } from './queryClientManager';
 
 const TansTackQueryGlobal = ({children}: {children: React.ReactNode}) => {
   const [queryClient] = useState(() => new QueryClient({
@@ -18,6 +19,8 @@ const TansTackQueryGlobal = ({children}: {children: React.ReactNode}) => {
   }));
 
   useEffect(() => {
+    setQueryClient(queryClient);
+
     return () => {
       queryClient.clear();
     };

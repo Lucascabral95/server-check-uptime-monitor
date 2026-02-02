@@ -4,7 +4,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { authService } from '@/infraestructure/services/auth.service';
 import { LoginException } from '@/infraestructure/interfaces';
 import { useAuthStore } from '@/lib/store/authStore';
-import { decodeJwt } from '@/presentation/utils';
+import { clearQueryCache } from '@/infraestructure/Tans-Tack-Query/queryClientManager';
 
 export function useAuth(options?: { checkOnMount: boolean }) {
   const {
@@ -50,11 +50,6 @@ export function useAuth(options?: { checkOnMount: boolean }) {
       const accessToken = session.tokens?.accessToken?.toString() || '';
       const idToken = session.tokens?.idToken?.toString() || '';
 
-
-
-      const decoded = decodeJwt(idToken);
-      console.log('decoded', decoded);
-
       setUser(currentUser, { accessToken, idToken });
     } catch (err: unknown) {
       const authError = err as LoginException;
@@ -75,6 +70,8 @@ export function useAuth(options?: { checkOnMount: boolean }) {
       console.error('Error al hacer logout:', err);
       storeLogout();
     } finally {
+      // Limpiar la caché de TanStack Query para evitar datos del usuario anterior
+      clearQueryCache();
       setLoading(false);
     }
   };

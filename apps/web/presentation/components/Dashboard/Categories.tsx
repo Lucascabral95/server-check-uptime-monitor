@@ -12,12 +12,12 @@ const CategoriesDashboard = () => {
   return (
     <ul className="container-categories-ul">
         {DASHBOARD_CATEGORIES.map((category) => (
-            <Link key={category.name} href={category.path}
-            className={location === category.path ? "container-categories-li-active" : "container-categories-li"}
-            aria-label={category.name}
+            <Link key={category?.name} href={category?.path}
+            className={location === category?.path ? "container-categories-li-active" : "container-categories-li"}
+            aria-label={category?.name}
             >
                 <category.icon className="icon-category" />
-                <span>{category.name}</span>
+                <span>{category?.name}</span>
             </Link>
         ))}
     </ul>

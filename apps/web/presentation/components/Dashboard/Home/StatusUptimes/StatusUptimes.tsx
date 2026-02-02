@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TbActivity } from "react-icons/tb";
 import { IoIosMore, IoIosCreate, IoIosTrash } from "react-icons/io";
-import { useRouter } from "next/navigation";
 
 import { GetAllUptimesDto, Status, GetUptimeDto, ToastProps } from '@/infraestructure/interfaces';
 import useUpdateMonitor from "@/presentation/hooks/useUpdateMonitor.hook";

@@ -331,11 +331,17 @@ npm run test:debug      # Tests con debug
 npm run lint            # Ejecutar ESLint
 npm run format          # Formatear con Prettier
 
-# Prisma
-npx prisma generate      # Generar cliente
-npx prisma migrate dev   # Crear migración
-npx prisma migrate deploy# Deploy migraciones
+# Prisma - Base de datos
+npx prisma generate      # Generar cliente Prisma
+npx prisma migrate dev   # Crear nueva migración
+npx prisma migrate deploy# Deploy migraciones (producción)
 npx prisma studio        # UI de base de datos
+
+# Prisma - Seed (datos de prueba)
+npm run prisma:seed      # Ejecutar seed sin resetear BD
+npm run db:reset         # Resetear BD (borra datos y reaplica migraciones)
+npm run db:seed          # Reset completo + seed (recomendado para desarrollo)
+npm run db:setup         # Setup completo: generate + migrate + seed
 ```
 
 ## API Endpoints
@@ -505,7 +511,68 @@ npx prisma migrate dev
 npx prisma generate
 ```
 
-4. Ejecutar la aplicación en modo desarrollo:
+4. (Opcional) Poblar la base de datos con datos de prueba
+
+El proyecto incluye un sistema de semilla (seed) que genera datos de desarrollo para probar la aplicación.
+
+> **⚠️ Importante**: El seed crea usuarios con datos específicos (email, cognitoSub). Para usar el frontend con estos usuarios de prueba, necesitarás configurar AWS Cognito con los mismos valores, o modificar el archivo `prisma/seed/data/user.data.ts` con tus propios datos.
+
+##### ¿Qué genera el seed?
+
+El sistema de seed utiliza **@faker-js/faker** para generar datos realistas:
+
+**Usuarios (2):**
+- 1 usuario con rol `ADMIN`
+- 1 usuario con rol `USER`
+- Cada usuario tiene un `email` y `cognitoSub` específicos definidos en `prisma/seed/data/user.data.ts`
+
+**Monitores (8):**
+- 5 monitores para el usuario Admin (2 activos UP, 1 DOWN, 1 inactivo, 1 PENDING)
+- 3 monitores para el usuario Regular (2 activos UP, 1 con estado variado)
+- URLs, nombres y frecuencias generadas con Faker
+
+**Ping Logs (~1,344):**
+- Logs históricos de los últimos **7 días**
+- **24 logs por día** por monitor (1 log por hora)
+- **85% tasa de éxito**
+- Códigos de estado realistas:
+  - Éxitos: 200, 201, 204
+  - Errores: 400, 404, 500, 502, 503, 504
+- Tiempos de respuesta entre 50ms y 5000ms
+- Mensajes de error realistas: "Connection timeout", "DNS resolution failed", "SSL certificate error", etc.
+
+##### Personalizar el seed
+
+Para usar tus propios usuarios de prueba, edita `prisma/seed/data/user.data.ts`:
+
+```typescript
+export const SEED_USERS = [
+  {
+    id: 'your-uuid-here',
+    cognitoSub: 'your-cognito-sub-here', // Desde AWS Cognito
+    email: 'your-email@example.com',
+    role: Role.ADMIN,
+  },
+  // ...
+];
+```
+
+##### Ejecutar el seed
+
+```bash
+# Opción 1: Reset completo + seed (recomendado para desarrollo)
+npm run db:seed
+
+# Opción 2: Solo seed (sin reset)
+npm run prisma:seed
+
+# Opción 3: Setup completo (generate + migrate + seed)
+npm run db:setup
+```
+
+> **Nota**: El comando `db:seed` ejecuta automáticamente `db:reset` (borra todos los datos y reaplica migraciones) antes de ejecutar el seed.
+
+5. Ejecutar la aplicación en modo desarrollo:
 
 ```bash
 npm run start:dev

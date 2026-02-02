@@ -36,7 +36,7 @@ export class PingLogService {
   
   async findAll() {
     try {
-      const getAllPingLogs = this.prisma.pingLog.findMany();
+      const getAllPingLogs = await this.prisma.pingLog.findMany();
       
       if (!getAllPingLogs) {
         throw new NotFoundException('No ping logs found');

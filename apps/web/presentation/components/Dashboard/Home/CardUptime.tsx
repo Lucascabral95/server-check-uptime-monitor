@@ -16,8 +16,8 @@ import {
 import { GetUptimeDto, ToastProps } from "@/infraestructure/interfaces";
 import { useUptimeCheck } from "@/presentation/hooks";
 import useUpdateMonitor from "@/presentation/hooks/useUpdateMonitor.hook";
-
 import { TIMEOUT_TOAST } from "@/infraestructure/constants";
+
 import "./CardUptime.scss";
 
 interface CardUptimeProps {

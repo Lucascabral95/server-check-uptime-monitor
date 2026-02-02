@@ -1,6 +1,10 @@
+import Link from "next/link";
+
+const ENDPOINT_INDEX = "/dashboard/home";
+
 export function AuthLogo() {
   return (
-    <div className="auth-logo">
+    <Link href={ENDPOINT_INDEX} className="auth-logo">
       <div className="logo-container">
         <div className="logo-text">
           <span className="logo-name">Server Check</span>
@@ -9,6 +13,6 @@ export function AuthLogo() {
           <span className="status-dot"></span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

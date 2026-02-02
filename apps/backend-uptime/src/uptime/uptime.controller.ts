@@ -26,6 +26,7 @@ import {
 } from './dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { MonitorOwnerGuard } from 'src/auth/guards/monitor-owner.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role, Status } from '@prisma/client';
 import { RequestUserDto } from 'src/user/dto';
@@ -39,7 +40,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { EmailService } from 'src/email/email.service';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
 @ApiTags('Uptime')
 @ApiBearerAuth('jwt-auth')
@@ -49,9 +50,9 @@ export class UptimeController {
     private readonly uptimeService: UptimeService,
     private readonly httpPoolService: HttpPoolService,
     private readonly pingLogBufferService: PingLogBufferService,
-    private readonly emailService: EmailService,
   ) {}
   
+  @Throttle({ short: {} })
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Crear monitor de uptime' })
@@ -60,11 +61,13 @@ export class UptimeController {
     return this.uptimeService.create(createUptimeDto, req.user.dbUserId);
   }
   
+  @Throttle({ medium: {} })
   @Get()
   @ApiOperation({ summary: 'Listar monitores con paginación' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'userId', required: false, type: String })
+  @ApiQuery({ name: 'email', required: false, type: String })
   @ApiQuery({ name: 'status', required: false, enum: Status })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por nombre o URL' })
   @ApiQuery({ name: 'includeInactive', required: false, type: Boolean, description: 'Incluir monitores inactivos (isActive: false). Por defecto false.' })
@@ -79,6 +82,7 @@ export class UptimeController {
     return this.uptimeService.findAll(paginationDto);
   }
 
+  @SkipThrottle()
   @Get('stats')
   @ApiOperation({ summary: 'Obtener estadísticas internas del sistema' })
     getStats() {
@@ -90,24 +94,54 @@ export class UptimeController {
         };
     }
 
+  @Throttle({ medium: {} })
   @Get('stats/user')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  // @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Obtener estadísticas de mis links activos' })
   getStatsUser(@Request() req: RequestUserDto): Promise<GetStatsUserDto> {
     return this.uptimeService.getStatsByUserId(req.user.dbUserId);
   }
 
-    @Get('flush')
-    @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
-    async forceFlush() {
-        await this.pingLogBufferService.forceFlush();
-        return { message: 'Buffer flushed successfully' };
+  @SkipThrottle()
+  @Get('flush')
+  @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
+  async forceFlush() {
+      await this.pingLogBufferService.forceFlush();
+      return { message: 'Buffer flushed successfully' };
     }
-  
+
+  @SkipThrottle()
+  @Post('queue/clear')
+  @ApiOperation({ summary: 'Limpiar todos los jobs de la cola (útil después de db:reset o db:seed)' })
+  @ApiResponse({ status: 200, schema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      removedCount: { type: 'number' }
+    }
+  }})
+  async clearQueueJobs() {
+    return this.uptimeService.clearAllQueueJobs();
+  }
+
+  @SkipThrottle()
+  @Post('queue/sync')
+  @ApiOperation({ summary: 'Sincronizar jobs de la cola con monitores en BD - elimina huérfanos y crea faltantes' })
+  @ApiResponse({ status: 200, schema: {
+    type: 'object',
+    properties: {
+      orphanedRemoved: { type: 'number' },
+      jobsCreated: { type: 'number' }
+    }
+  }})
+  async syncQueueJobs() {
+    return this.uptimeService.syncQueueJobs();
+  }
+
+  @Throttle({ medium: {} })
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, MonitorOwnerGuard)
   @ApiOperation({ summary: 'Obtener monitor por ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, type: GetUptimeDto })
@@ -115,9 +149,9 @@ export class UptimeController {
      return this.uptimeService.findOne(id, req.user.dbUserId);
   }
 
+  @Throttle({ medium: {} })
   @Get('logs/:uptimeId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, MonitorOwnerGuard)
   @ApiOperation({ summary: 'Obtener logs de un monitor por ID' })
   @ApiParam({ name: 'uptimeId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, type: GetStatsLogsByUptimeIdDto })
@@ -125,9 +159,9 @@ export class UptimeController {
     return this.uptimeService.findStatsLogsByUptimeId(uptimeId, req.user.dbUserId);
   }
 
+  @Throttle({ medium: {} })
   @Get('incidents/user')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Obtener todos los incidentes de todos los monitores del usuario (vista global del dashboard)' })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por nombre o URL del monitor' })
   @ApiQuery({
@@ -142,9 +176,9 @@ export class UptimeController {
     return this.uptimeService.getIncidentsByUserId(req.user.dbUserId, paginationDto);
   }
 
+  @Throttle({ medium: {} })
   @Get('incidents/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, MonitorOwnerGuard)
   @ApiOperation({ summary: 'Obtener incidentes de un monitor (períodos de caída agrupados)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, type: GetIncidentsDto })
@@ -152,9 +186,9 @@ export class UptimeController {
     return this.uptimeService.getIncidents(id, req.user.dbUserId);
   }
   
+  @Throttle({ medium: {} })
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, MonitorOwnerGuard)
   @ApiOperation({ summary: 'Actualizar monitor' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, type: GetUptimeDto })
@@ -162,11 +196,11 @@ export class UptimeController {
     return this.uptimeService.update(id, updateUptimeDto, req.user.dbUserId);
   }
   
+  @Throttle({ short: {} })
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, MonitorOwnerGuard)
   @ApiOperation({ summary: 'Eliminar monitor' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @Roles(Role.ADMIN)
   remove(@Param('id') id: string, @Request() req: RequestUserDto) {
     return this.uptimeService.remove(id, req.user.dbUserId);
   }

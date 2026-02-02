@@ -40,77 +40,6 @@ export class EmailService {
     this.fromEmail = envs.aws_ses_from_email;
   }
 
-  // async sendEmail(sendEmailDto: SendEmailDto): Promise<void> {
-  //     if (!sendEmailDto.to) {
-  //       this.logger.error('Intento de envío sin destinatario (to es null/undefined)');
-  //       return; 
-  //     }
-
-  //     const { to, subject, textBody, html } = sendEmailDto;
-  //     const finalTo = to.trim(); 
-
-  //     const params = {
-  //       Source: this.fromEmail,
-  //       Destination: {
-  //           ToAddresses: [finalTo],
-  //       },
-  //       Message: {
-  //           Subject: {
-  //               Data: subject,
-  //               Charset: "UTF-8",
-  //           },
-  //           Body: {
-  //               Text: {
-  //                   Data: textBody,
-  //                   Charset: "UTF-8",
-  //               },
-  //           },
-  //           ...(html && {
-  //               Html: {
-  //                   Data: html,
-  //                   Charset: "UTF-8",
-  //               },
-  //           }),
-  //       },
-  //     };
-      
-  //     try {
-  //          const command = new SendEmailCommand(params);
-  //          await this.sesClient.send(command);
-  //          this.logger.log(`Email enviado exitosamente a ${finalTo} con AWS SES`);
-
-  //     } catch (error) {
-  //       this.logger.warn(`Fallo AWS SES. Error: ${error.message}`);
-
-  //       if (
-  //         error.Code === "MessageRejected" || 
-  //         error.name === "MessageRejected" || 
-  //         error.name === "InvalidParameterValue" ||
-  //         error.message.includes("Missing final '@domain'")
-  //       ) {
-  //           this.logger.warn(`[Plan B] Activando Fallback Strategy para ${finalTo}...`);
-            
-  //           try {
-  //               await this.transporter.sendMail({
-  //                   from: `"Backend Uptime Fallback" <${this.fromEmail}>`,
-  //                   to: finalTo,
-  //                   subject: subject,
-  //                   text: textBody,
-  //                   html: html,
-  //               });
-  //               this.logger.log("Email enviado exitosamente con Gmail SMTP");
-
-  //           } catch (fallbackError) {
-  //               this.logger.error(`Fallo Gmail SMTP también. ${fallbackError}`);
-  //               throw fallbackError; 
-  //           }
-  //       } else {
-  //           this.logger.error('Error no manejado en SES', error);
-  //           throw error;
-  //       }
-  //     }
-  // }
-
     async sendEmail(sendEmailDto: SendEmailDto): Promise<void> {
     if (!sendEmailDto.to) {
       this.logger.error('Intento de envío sin destinatario (to es null/undefined)');
@@ -183,7 +112,6 @@ export class EmailService {
       }
     }
   }
-
 
   async sendNotificationEmail(email: string, nameServer: string, serverStatus: Status ): Promise<void> {
     const subject = "Actualización de estado de uno de tus servidores";

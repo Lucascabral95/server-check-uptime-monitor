@@ -19,4 +19,5 @@ export interface PaginationParams {
     sortBy?: SortBy | null;
     search?: string;
     includeInactive?: boolean;
+    email?: string;
 }
