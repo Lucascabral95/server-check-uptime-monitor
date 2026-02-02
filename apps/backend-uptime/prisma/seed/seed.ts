@@ -1,6 +1,10 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
-import { SEED_USERS, ADMIN_USER, REGULAR_USER } from './data/user.data';
+import { 
+  SEED_USERS,
+  ADMIN_USER,
+  REGULAR_USER,
+} from './data/user.data';
 import { MonitorFactory } from './factories/monitor.factory';
 import { PingLogFactory } from './factories/ping-log.factory';
 import { config } from 'dotenv';
@@ -86,28 +90,46 @@ async function main() {
   console.log(`✅ Admin: ${ADMIN_USER.email}`);
   console.log(`✅ User: ${REGULAR_USER.email}\n`);
 
-  console.log('🖥️  Creando 8 monitores para Admin...');
-  const adminMonitorsData = MonitorFactory.createMany(ADMIN_USER.id, 8);
+  console.log('🖥️  Creando 6 monitores para Admin...');
+  const adminMonitorsData = MonitorFactory.createMany(ADMIN_USER.id, 6);
   const adminMonitors = await Promise.all(
     adminMonitorsData.map((data) => prisma.monitor.create({ data })),
   );
-  console.log(`✅ ${adminMonitors.length} monitores creados para Admin\n`);
+  console.log(`✅ ${adminMonitors.length} monitores creados para Admin:`);
+  adminMonitors.forEach((m, i) => {
+    console.log(`   ${i + 1}. ${m.name} - ${m.url} (${m.frequency}s) - ${m.status}`);
+  });
+  console.log('');
 
-  console.log('🖥️  Creando 8 monitores para Usuario Regular...');
-  const userMonitorsData = MonitorFactory.createMany(REGULAR_USER.id, 8);
+  console.log('🖥️  Creando 6 monitores para Usuario Regular...');
+  const userMonitorsData = MonitorFactory.createMany(REGULAR_USER.id, 6);
   const userMonitors = await Promise.all(
     userMonitorsData.map((data) => prisma.monitor.create({ data })),
   );
-  console.log(`✅ ${userMonitors.length} monitores creados para Usuario Regular\n`);
+  console.log(`✅ ${userMonitors.length} monitores creados para Usuario Regular:`);
+  userMonitors.forEach((m, i) => {
+    console.log(`   ${i + 1}. ${m.name} - ${m.url} (${m.frequency}s) - ${m.status}`);
+  });
+  console.log('');
 
-  console.log('📊 Creando ping logs (máx 100 por monitor)...');
+  console.log('📊 Creando 30 ping logs por monitor (coherentes con el estado)...');
   let totalLogs = 0;
+  let totalSuccess = 0;
+  let totalFailed = 0;
+
   for (const monitor of [...adminMonitors, ...userMonitors]) {
-    const logs = PingLogFactory.createTimeSeries(monitor.id, 7, 24);
+    const isHealthy = monitor.status === 'UP';
+    const logs = PingLogFactory.createMany(monitor.id, 30, isHealthy);
     await prisma.pingLog.createMany({ data: logs });
+    
+    const successCount = logs.filter(log => log.success).length;
     totalLogs += logs.length;
+    totalSuccess += successCount;
+    totalFailed += (logs.length - successCount);
   }
-  console.log(`✅ ${totalLogs} ping logs creados\n`);
+  console.log(`✅ ${totalLogs} ping logs creados (30 por monitor)`);
+  console.log(`   📈 Exitosos: ${totalSuccess} (${Math.round(totalSuccess/totalLogs*100)}%)`);
+  console.log(`   📉 Fallidos: ${totalFailed} (${Math.round(totalFailed/totalLogs*100)}%)\n`);
 
   const allMonitors = [...adminMonitors, ...userMonitors];
   await createMonitorJobs(allMonitors);
@@ -116,12 +138,22 @@ async function main() {
   console.log('🎉 Seed completado exitosamente!\n');
   console.log('📊 Resumen:');
   console.log(`   • Usuarios: ${users.length}`);
-  console.log(`   • Monitores: ${adminMonitors.length + userMonitors.length}`);
-  console.log(`   • Ping Logs: ${totalLogs}`);
+  console.log(`   • Monitores: ${allMonitors.length} (6 por usuario)`);
+  console.log(`   • Ping Logs: ${totalLogs} (30 por monitor)`);
+  console.log(`   • Jobs en BullMQ: ${allMonitors.filter(m => m.isActive).length}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   console.log('👤 Credenciales de acceso:');
   console.log(`   Admin: ${ADMIN_USER.email}`);
   console.log(`   User:  ${REGULAR_USER.email}`);
+  console.log('\n📋 Monitores creados:');
+  console.log('   ✅ 4 sitios saludables (95% uptime):');
+  console.log('      - Google Search (60s)');
+  console.log('      - GitHub API (5min)');
+  console.log('      - JSONPlaceholder API (10min)');
+  console.log('      - HTTPBin Status (30min)');
+  console.log('   ❌ 2 sitios con problemas (10% uptime):');
+  console.log('      - Invalid Domain (1h)');
+  console.log('      - HTTPBin Error 500 (2h)');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 

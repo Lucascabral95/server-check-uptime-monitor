@@ -1,55 +1,68 @@
-import { faker } from '@faker-js/faker';
 import { Monitor, Status } from '@prisma/client';
 
 export class MonitorFactory {
+  private static readonly REAL_MONITORS = [
+    {
+      name: 'Google Search',
+      url: 'https://www.google.com',
+      frequency: 60,
+      status: Status.UP,
+    },
+    {
+      name: 'GitHub API',
+      url: 'https://api.github.com',
+      frequency: 300,
+      status: Status.UP,
+    },
+    {
+      name: 'JSONPlaceholder API',
+      url: 'https://jsonplaceholder.typicode.com/posts/1',
+      frequency: 600,
+      status: Status.UP,
+    },
+    {
+      name: 'HTTPBin Status',
+      url: 'https://httpbin.org/status/200',
+      frequency: 1800,
+      status: Status.UP,
+    },
+    {
+      name: 'Invalid Domain',
+      url: 'https://this-domain-does-not-exist-12345.com',
+      frequency: 3600,
+      status: Status.DOWN,
+    },
+    {
+      name: 'HTTPBin Error 500',
+      url: 'https://httpbin.org/status/500',
+      frequency: 7200,
+      status: Status.DOWN,
+    },
+  ];
+
   static create(
     userId: string,
-    overrides?: Partial<Monitor>,
+    index: number,
   ): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> {
     const now = new Date();
+    const monitorConfig = this.REAL_MONITORS[index % this.REAL_MONITORS.length];
 
     return {
       userId,
-      name: faker.company.name(),
-      url: faker.internet.url({ protocol: 'https' }),
-      frequency: faker.helpers.arrayElement([30, 60, 120, 300, 600]),
+      name: monitorConfig.name,
+      url: monitorConfig.url,
+      frequency: monitorConfig.frequency,
       isActive: true,
-      nextCheck: new Date(now.getTime() + 60000),
-      lastCheck: faker.datatype.boolean() ? faker.date.recent({ days: 1 }) : null,
-      status: Status.PENDING,
-      ...overrides,
+      nextCheck: new Date(now.getTime() + monitorConfig.frequency * 1000),
+      lastCheck: new Date(now.getTime() - monitorConfig.frequency * 1000),
+      status: monitorConfig.status,
     };
   }
 
   static createMany(
     userId: string,
     count: number,
-    overrides?: Partial<Monitor>,
   ): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>[] {
-    return Array.from({ length: count }, () => this.create(userId, overrides));
-  }
-
-  static createActive(userId: string): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> {
-    return this.create(userId, {
-      isActive: true,
-      status: Status.UP,
-      lastCheck: new Date(),
-    });
-  }
-
-  static createInactive(userId: string): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> {
-    return this.create(userId, {
-      isActive: false,
-      status: Status.DOWN,
-      lastCheck: faker.date.recent({ days: 7 }),
-    });
-  }
-
-  static createDown(userId: string): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> {
-    return this.create(userId, {
-      isActive: true,
-      status: Status.DOWN,
-      lastCheck: new Date(),
-    });
+    return Array.from({ length: count }, (_, index) => this.create(userId, index));
   }
 }

@@ -11,6 +11,7 @@ import { HttpPoolService } from './services/http-pool.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
 import { EmailService } from 'src/email/email.service';
 import { EmailModule } from 'src/email/email.module';
+import { MonitorOwnerGuard } from 'src/auth/guards/monitor-owner.guard';
 
 @Module({
     imports: [
@@ -26,9 +27,10 @@ import { EmailModule } from 'src/email/email.module';
       UptimeProcessor,
       UserService,
       HttpPoolService,
-      HttpPoolService, 
+      HttpPoolService,
       PingLogBufferService,
       EmailService,
+      MonitorOwnerGuard,
       ],
     exports: [HttpPoolService],
 })

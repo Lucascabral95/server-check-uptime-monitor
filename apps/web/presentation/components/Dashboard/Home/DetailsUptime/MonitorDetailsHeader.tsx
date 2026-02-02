@@ -9,8 +9,9 @@ import { IoIosCreate, IoIosTrash } from 'react-icons/io';
 import { GetStatsLogsByUptimeIdInterface, ToastInterface } from '@/infraestructure/interfaces';
 import useUptime from '@/presentation/hooks/useUptime.hook';
 import Toast from '@/presentation/components/shared/Toasts/Toast';
-import './MonitorDetailsHeader.scss';
 import { TIMEOUT_TOAST } from '@/infraestructure/constants';
+
+import './MonitorDetailsHeader.scss';
 
 interface MonitorDetailsHeaderProps {
     monitor: GetStatsLogsByUptimeIdInterface;

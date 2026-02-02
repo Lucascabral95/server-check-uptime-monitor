@@ -14,6 +14,8 @@ import { EmailModule } from './email/email.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
+const MULTIPLIER_THROTTLER = 10;
+
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
@@ -22,17 +24,17 @@ import { APP_GUARD } from '@nestjs/core';
             {
                 name: "short",
                 ttl: 1000,
-                limit: 3,
+                limit: 3 * MULTIPLIER_THROTTLER,
             },
             {
                 name: "medium",
                 ttl: 10000,
-                limit: 20,
+                limit: 20 * MULTIPLIER_THROTTLER,
             },
             {
                 name: "long",
                 ttl: 60000,
-                limit: 100,
+                limit: 100 * MULTIPLIER_THROTTLER,
             },
         ]),
 

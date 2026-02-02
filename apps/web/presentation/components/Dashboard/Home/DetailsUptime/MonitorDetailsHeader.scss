@@ -11,8 +11,9 @@ $accent-blue: #5766ff;
   margin: 2rem 0;
   gap: 16px;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 
-  /* TABLET & MOBILE STACK */
   @media (max-width: 768px) {
     flex-direction: column;
     align-items: flex-start;
@@ -117,15 +118,11 @@ $accent-blue: #5766ff;
     display: flex;
     gap: 8px;
     flex-shrink: 0;
-
-    @media (max-width: 768px) {
-      width: 100%;
-      justify-content: flex-start;
-    }
+    width: 100%;
+    box-sizing: border-box;
 
     @media (max-width: 480px) {
       flex-direction: column;
-      width: 100%;
     }
 
     .btn {
@@ -139,8 +136,9 @@ $accent-blue: #5766ff;
       color: #fff;
       font-size: 15px;
       cursor: pointer;
-      width: max-content;
       text-decoration: none;
+      max-width: 100%;
+      box-sizing: border-box;
 
       .icon {
         font-size: 16px;

@@ -5,7 +5,12 @@ import {
   useEffect,
   useRef,
  } from "react";
-import { Status, SortBy } from "@/infraestructure/interfaces";
+ 
+import { 
+  Status, 
+  SortBy,
+} from "@/infraestructure/interfaces";
+import { useAuth } from "@/lib/hooks";
 
 export const useFilters = () => {
   const [searchValue, setSearchValue] = useState<string>("");
@@ -14,6 +19,9 @@ export const useFilters = () => {
   
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { user: currentUserSession } = useAuth()
+  const currentEmail = currentUserSession?.signInDetails?.loginId; // Email del usuario en sesion
 
   useEffect(() => {
     if (timerRef.current) {
@@ -37,7 +45,8 @@ export const useFilters = () => {
     sortBy: selectedSort || undefined,
     limit: 1000,
     includeInactive: true,
-  }), [debouncedSearch, selectedStatus, selectedSort]);
+    email: currentEmail,
+  }), [debouncedSearch, selectedStatus, selectedSort, currentEmail]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchValue(value);

@@ -3,13 +3,13 @@ import { Role } from '@prisma/client';
 export const SEED_USERS = [
   {
     id: 'dbbbdc7b-f903-4037-a810-aab4d8f1db19',
-    cognitoSub: '54485448-00b1-701c-3cb0-c10db3dc2c2e',
+    cognitoSub: '145854c8-4081-704f-ca5d-b06ba2d92b75',
     email: 'edgardolucesss@gmail.com',
     role: Role.ADMIN,
   },
   {
     id: '82ca676f-034a-4b9a-bf51-fa4ceccbae19',
-    cognitoSub: '745844d8-30f1-70d8-df1e-2695a6766bba',
+    cognitoSub: 'd4a80438-d031-7027-fd40-2e4cff7ac0a3',
     email: 'lucasgamerpolar10@gmail.com',
     role: Role.USER,
   },

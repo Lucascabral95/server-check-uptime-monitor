@@ -4,10 +4,11 @@ import { useState, useRef, useEffect, memo } from "react";
 import { CiFilter } from "react-icons/ci";
 import { MdOutlineSwapVert } from "react-icons/md";
 import { IoClose } from "react-icons/io5";
-import { Status, SortBy } from "@/infraestructure/interfaces";
 
+import { Status, SortBy } from "@/infraestructure/interfaces";
 import FilterMonitorInside from "./FilterMonitorInside";
 import SortMonitorInside from "./SortMonitorInside";
+
 import "./FiltersMonitor.scss";
 
 interface FiltersMonitorProps {

@@ -21,7 +21,7 @@ export async function createUptime(createUptime: CreateUptimeDto) {
 export async function getAllUptimes(params?: PaginationParams) {
     try {
         const { data } = await axiosInstance.get("/uptime", { params });
-
+     
         return data;
     } catch (error) {
         if (isAxiosError(error)) {
@@ -70,8 +70,6 @@ export async function deleteUptimeById(id: string) {
     try {
         const { data } = await axiosInstance.delete(`/uptime/${id}`);
 
-        console.log(data);
-
         return data;
     } catch (error) {
         if (isAxiosError(error)) {
@@ -88,8 +86,6 @@ export async function deleteUptimeById(id: string) {
 export async function getStatsLogsByUptimeId(uptimeId: string) {
     try {
         const { data } = await axiosInstance.get(`/uptime/logs/${uptimeId}`);
-
-        console.log(data);
 
         return data;
     } catch (error) {
@@ -124,8 +120,6 @@ export async function getMyStatsUser() {
 export async function getIncidents(monitorId: string) {
     try {
         const { data } = await axiosInstance.get(`/uptime/incidents/${monitorId}`);
-
-        console.log(data);
 
         return data;
     } catch (error) {

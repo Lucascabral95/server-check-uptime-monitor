@@ -336,9 +336,35 @@ $radius: 12px;
 
 @media (max-width: 960px) {
   .filter-container {
+
     .cont-filter-of-monitors {
       display: none;
     }
   }
 }
 
+
+@media (max-width: 620px) {
+  .filter-container {
+    .search-filter-order {
+      .search {
+        padding: 0px;
+        width: fit-content;
+
+        .search-input-wrapper {
+          width: fit-content;
+
+          .input-search {
+            width: fit-content;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-container {
+    margin: 16px 0;
+  }
+}

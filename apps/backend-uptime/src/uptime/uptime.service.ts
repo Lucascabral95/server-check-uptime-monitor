@@ -82,7 +82,15 @@ export class UptimeService {
 
     async findAll(paginationDto: PaginationUptimeDto = {}): Promise<PaginatedResponseDto<any>> {
         try {
-            const { page = 1, limit = 10, userId, status, sortBy = SortBy.RECENT, search, includeInactive = false } = paginationDto;
+            const { page = 1, 
+              limit = 10, 
+              userId, 
+              status, 
+              sortBy = SortBy.RECENT, 
+              search, 
+              includeInactive = false,
+              email,
+             } = paginationDto;
             const skip = (page - 1) * limit;
 
             const where: any = {};
@@ -97,6 +105,12 @@ export class UptimeService {
 
             if (!includeInactive) {
                 where.isActive = true;
+            }
+
+            if (email) {
+                where.user = {
+                    email: email
+                };
             }
 
             if (search) {
@@ -832,7 +846,6 @@ export class UptimeService {
     try {
       const { search, sortBy = IncidentSortBy.RECENT } = paginationDto || {};
 
-      // Build the where clause for search
       const monitorWhere: any = { userId, isActive: true };
 
       if (search) {
