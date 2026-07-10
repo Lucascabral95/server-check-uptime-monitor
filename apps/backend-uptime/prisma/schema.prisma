@@ -56,6 +56,38 @@ enum AggregateGranularity {
   DAILY
 }
 
+enum NotificationChannelType {
+  EMAIL
+  SLACK
+  WEBHOOK
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum IncidentLifecycle {
+  INVESTIGATING
+  IDENTIFIED
+  MONITORING
+  RESOLVED
+}
+
+enum ProbeAssignmentStatus {
+  PENDING
+  LEASED
+  COMPLETED
+  FAILED
+}
+
 model User {
   id              String                @id @default(uuid())
   cognitoSub      String?               @unique @map("cognito_sub")
@@ -68,6 +100,9 @@ model User {
   memberships     WorkspaceMembership[]
   auditLogs       AuditLog[]
   invitations     Invitation[]
+  acknowledgedIncidents Incident[] @relation("IncidentAcknowledgedBy")
+  incidentComments IncidentComment[]
+  timelineEvents IncidentTimeline[] @relation("IncidentTimelineActor")
 
   @@map("users")
 }
@@ -86,6 +121,10 @@ model Workspace {
   invitations Invitation[]
   apiKeys     ApiKey[]
   auditLogs   AuditLog[]
+  notificationChannels NotificationChannel[]
+  alertPolicies AlertPolicy[]
+  statusPages StatusPage[]
+  probeAgents ProbeAgent[]
   createdAt   DateTime              @default(now()) @map("created_at")
   updatedAt   DateTime              @updatedAt @map("updated_at")
 
@@ -212,6 +251,11 @@ model Monitor {
   probeResults ProbeResult[]
   maintenanceWindows MaintenanceWindow[]
   aggregates MonitorAggregate[]
+  notificationDeliveries NotificationDelivery[]
+  alertPolicies AlertPolicy[]
+  statusPageComponents StatusPageComponent[]
+  sloTargets SloTarget[]
+  probeAssignments ProbeAssignment[]
 
   // findAll() (uptime.service.ts) siempre filtra por userId y ordena por
   // createdAt; getStatsByUserId() siempre filtra por userId+isActive(+status).
@@ -362,9 +406,17 @@ model Incident {
   firstError      String?        @map("first_error")
   lastError       String?        @map("last_error")
   affectedChecks  Int            @default(1) @map("affected_checks")
+  severity        AlertSeverity  @default(CRITICAL)
+  lifecycle       IncidentLifecycle @default(INVESTIGATING)
+  acknowledgedAt  DateTime?      @map("acknowledged_at")
+  acknowledgedById String?       @map("acknowledged_by_id")
 
   monitor   Monitor    @relation(fields: [monitorId], references: [id], onDelete: Cascade)
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  acknowledgedBy User? @relation("IncidentAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  comments IncidentComment[]
+  timeline IncidentTimeline[]
+  notificationDeliveries NotificationDelivery[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -374,6 +426,194 @@ model Incident {
   @@index([userId, status])
   @@index([workspaceId, startedAt(sort: Desc)])
   @@map("incidents")
+}
+
+model NotificationChannel {
+  id String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+  name String
+  type NotificationChannelType
+  config Json
+  enabled Boolean @default(true)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+  policies AlertPolicy[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([workspaceId, enabled])
+  @@map("notification_channels")
+}
+
+model AlertPolicy {
+  id String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+  name String
+  severity AlertSeverity @default(CRITICAL)
+  monitorIds Json @map("monitor_ids")
+  cooldownSeconds Int @default(300) @map("cooldown_seconds")
+  recoveryEnabled Boolean @default(true) @map("recovery_enabled")
+  enabled Boolean @default(true)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  monitorId String? @map("monitor_id")
+  monitor Monitor? @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  channels NotificationChannel[]
+  deliveries NotificationDelivery[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([workspaceId, enabled])
+  @@map("alert_policies")
+}
+
+model NotificationDelivery {
+  id String @id @default(uuid())
+  channelId String @map("channel_id")
+  policyId String? @map("policy_id")
+  monitorId String? @map("monitor_id")
+  incidentId String? @map("incident_id")
+  idempotencyKey String @unique @map("idempotency_key")
+  status NotificationDeliveryStatus @default(PENDING)
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  payload Json
+  lastError String? @map("last_error")
+  sentAt DateTime? @map("sent_at")
+  channel NotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  policy AlertPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  monitor Monitor? @relation(fields: [monitorId], references: [id], onDelete: SetNull)
+  incident Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([status, nextAttemptAt])
+  @@map("notification_deliveries")
+}
+
+model IncidentComment {
+  id String @id @default(uuid())
+  incidentId String @map("incident_id")
+  authorId String @map("author_id")
+  body String
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([incidentId, createdAt])
+  @@map("incident_comments")
+}
+
+model IncidentTimeline {
+  id String @id @default(uuid())
+  incidentId String @map("incident_id")
+  actorId String? @map("actor_id")
+  event String
+  metadata Json?
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  actor User? @relation("IncidentTimelineActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([incidentId, createdAt])
+  @@map("incident_timeline")
+}
+
+model StatusPage {
+  id String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+  name String
+  slug String @unique
+  description String?
+  isPublished Boolean @default(false) @map("is_published")
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  components StatusPageComponent[]
+  subscribers StatusPageSubscriber[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([workspaceId, isPublished])
+  @@map("status_pages")
+}
+
+model StatusPageComponent {
+  id String @id @default(uuid())
+  statusPageId String @map("status_page_id")
+  monitorId String @map("monitor_id")
+  name String
+  position Int @default(0)
+  statusPage StatusPage @relation(fields: [statusPageId], references: [id], onDelete: Cascade)
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  @@unique([statusPageId, monitorId])
+  @@index([statusPageId, position])
+  @@map("status_page_components")
+}
+
+model StatusPageSubscriber {
+  id String @id @default(uuid())
+  statusPageId String @map("status_page_id")
+  email String
+  tokenHash String @unique @map("token_hash")
+  confirmedAt DateTime? @map("confirmed_at")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+  statusPage StatusPage @relation(fields: [statusPageId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([statusPageId, email])
+  @@map("status_page_subscribers")
+}
+
+model ProbeAgent {
+  id String @id @default(uuid())
+  workspaceId String? @map("workspace_id")
+  name String
+  region String @unique
+  version String
+  tokenHash String @unique @map("token_hash")
+  enabled Boolean @default(true)
+  lastSeenAt DateTime? @map("last_seen_at")
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  heartbeats AgentHeartbeat[]
+  assignments ProbeAssignment[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([enabled, lastSeenAt])
+  @@map("probe_agents")
+}
+
+model AgentHeartbeat {
+  id String @id @default(uuid())
+  agentId String @map("agent_id")
+  version String
+  queueLagMs Int @default(0) @map("queue_lag_ms")
+  capacity Int @default(0)
+  receivedAt DateTime @default(now()) @map("received_at")
+  agent ProbeAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  @@index([agentId, receivedAt(sort: Desc)])
+  @@map("agent_heartbeats")
+}
+
+model ProbeAssignment {
+  id String @id @default(uuid())
+  agentId String @map("agent_id")
+  runId String @map("run_id")
+  monitorId String @map("monitor_id")
+  url String
+  method String @default("GET")
+  timeoutMs Int @default(10000) @map("timeout_ms")
+  status ProbeAssignmentStatus @default(PENDING)
+  leasedUntil DateTime? @map("leased_until")
+  completedAt DateTime? @map("completed_at")
+  agent ProbeAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([runId, agentId])
+  @@index([agentId, status, leasedUntil])
+  @@map("probe_assignments")
+}
+
+model SloTarget {
+  id String @id @default(uuid())
+  monitorId String @map("monitor_id")
+  target Decimal @db.Decimal(5, 3)
+  periodDays Int @default(30) @map("period_days")
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([monitorId, periodDays])
+  @@map("slo_targets")
 }
 
 // NOTA para quien genere la migración (`npx prisma migrate dev --create-only

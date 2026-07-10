@@ -1,16 +1,10 @@
-import { 
-  Injectable,
-   CanActivate,
-    ExecutionContext,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class MonitorOwnerGuard implements CanActivate {
-  constructor(
-    private prisma: PrismaService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -25,7 +19,7 @@ export class MonitorOwnerGuard implements CanActivate {
     }
 
     const params = request.params;
-    const monitorId = params.id || params.uptimeId;
+    const monitorId = params.id || params.uptimeId || params.monitorId;
 
     if (!monitorId) {
       return false;

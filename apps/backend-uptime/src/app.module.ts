@@ -16,6 +16,12 @@ import { HealthModule } from './health/health.module';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { RedisThrottlerStorage } from './common/rate-limit/redis-throttler.storage';
 import { WorkspaceModule } from './workspace/workspace.module';
+import { AlertingModule } from './alerting/alerting.module';
+import { StatusPageModule } from './status-page/status-page.module';
+import { ProbeAgentModule } from './probe-agent/probe-agent.module';
+import { SloModule } from './slo/slo.module';
+import { ReportModule } from './reports/report.module';
+import { ObservabilityModule } from './observability/observability.module';
 
 const MULTIPLIER_THROTTLER = 10;
 
@@ -49,6 +55,12 @@ const MULTIPLIER_THROTTLER = 10;
     JwtModuleModule,
     EmailModule,
     WorkspaceModule,
+    AlertingModule,
+    StatusPageModule,
+    ProbeAgentModule,
+    SloModule,
+    ReportModule,
+    ObservabilityModule,
   ],
   controllers: [AppController],
   providers: [

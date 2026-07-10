@@ -1,0 +1,18 @@
+groups:
+  - name: server-check-platform
+    rules:
+      - alert: ApiHighErrorRate
+        expr: sum(rate(server_check_http_requests_total{status=~"5.."}[5m])) / sum(rate(server_check_http_requests_total[5m])) > 0.05
+        for: 10m
+        labels: { severity: critical }
+        annotations: { summary: "API error rate above 5%" }
+      - alert: NotificationQueueBacklog
+        expr: server_check_queue_depth{queue="notifications"} > 100
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "Notification queue backlog is growing" }
+      - alert: ProbeAgentMissingHeartbeat
+        expr: time() - server_check_probe_heartbeat_timestamp_seconds > 90
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "Regional probe agent heartbeat is stale" }

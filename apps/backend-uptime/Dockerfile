@@ -16,6 +16,10 @@ RUN npx prisma generate
 
 RUN npm run build
 
+RUN addgroup -S app && adduser -S app -G app \
+  && chown -R app:app /app
+USER app
+
 EXPOSE 4000
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]

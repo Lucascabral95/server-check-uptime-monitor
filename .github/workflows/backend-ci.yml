@@ -226,3 +226,12 @@ jobs:
             exit 1
           fi
           echo "Build successful"
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Start frontend for E2E
+        run: npm start > /tmp/server-check-web.log 2>&1 &
+        working-directory: apps/web
+      - name: Run critical Playwright flows
+        run: npm run test:e2e
+        working-directory: apps/web

@@ -1,0 +1,22 @@
+services:
+  probe-agent:
+    build:
+      context: ../../apps/probe-agent
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    environment:
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL}
+      PROBE_REGION: ${PROBE_REGION}
+      PROBE_TOKEN: ${PROBE_TOKEN}
+      PROBE_VERSION: ${PROBE_VERSION:-0.1.0}
+    networks: [probe_net]
+
+networks:
+  probe_net:
+    driver: bridge
+    internal: false
