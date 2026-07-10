@@ -1,23 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 
 import ConfigureAmplify from "@/lib/cognito/cognito";
 import TansTackQueryGlobal from "@/infraestructure/Tans-Tack-Query/TansTackQuery.global";
 import "./globals.css";
-
-const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["300", "400", "500", "600", "700"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["400", "500", "600"],
-});
 
 const siteUrl = process.env.NEXT_PUBLIC_URL || "https://tu-dominio-real.com";
 
@@ -115,9 +100,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         <TansTackQueryGlobal>
           <ConfigureAmplify />
           {children}

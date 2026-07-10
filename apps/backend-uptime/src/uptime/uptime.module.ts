@@ -35,7 +35,12 @@ import { EventsController } from './events.controller';
     EmailModule,
     WorkspaceModule,
   ],
-  controllers: [UptimeController, WorkspaceMonitorController, HeartbeatController, EventsController],
+  controllers: [
+    UptimeController,
+    WorkspaceMonitorController,
+    HeartbeatController,
+    EventsController,
+  ],
   providers: [
     UptimeService,
     UptimeProcessor,
@@ -54,6 +59,6 @@ import { EventsController } from './events.controller';
     MonitorAggregateService,
     EventsService,
   ],
-  exports: [HttpPoolService],
+  exports: [HttpPoolService, SecretEnvelopeService, EventsService],
 })
 export class UptimeModule {}

@@ -17,17 +17,34 @@
     "lint": "turbo run lint",
     "docker:backend": "cd apps/backend-uptime && docker-compose up --build -d backend-uptime",
     "build:start:frontend": "cd apps/web && npm run build && npm start",
-    "start:frontend": "cd apps/web && npm start"
+    "start:frontend": "cd apps/web && npm start",
+    "security:audit": "npm audit --audit-level=high"
   },
   "keywords": [],
   "author": "Lucas Cabral Dev",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "turbo": "^2.7.4"
+    "brace-expansion": "^1.1.13",
+    "axios": "^1.18.1",
+    "turbo": "^2.7.4",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
-    "nodemailer": "^7.0.12",
+    "next": "^16.2.10",
+    "nodemailer": "^9.0.3",
     "react-hook-form": "^7.71.1"
+  },
+  "overrides": {
+    "anymatch": {
+      "picomatch": "^2.3.2"
+    },
+    "micromatch": {
+      "picomatch": "^2.3.2"
+    },
+    "next": {
+      "postcss": "^8.5.16"
+    }
   }
 }

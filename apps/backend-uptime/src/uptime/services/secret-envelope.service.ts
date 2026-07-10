@@ -16,9 +16,15 @@ export class SecretEnvelopeService {
 
   constructor() {
     const configured = envs.monitor_secrets_key;
-    this.key = configured
-      ? this.parseKey(configured)
-      : createHash('sha256').update(envs.secret_jwt).digest();
+    if (configured) {
+      try {
+        this.key = this.parseKey(configured);
+        return;
+      } catch (error) {
+        if (envs.node_env === 'production') throw error;
+      }
+    }
+    this.key = createHash('sha256').update(envs.secret_jwt).digest();
   }
 
   encrypt(value: string): EncryptedValue {

@@ -1,4 +1,7 @@
+import './observability/tracing';
 import { NestFactory } from '@nestjs/core';
+import { randomUUID } from 'crypto';
+import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
@@ -10,6 +13,29 @@ import { PrismaExceptionFilter } from './errors';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const requestLogger = new Logger('http');
+  app.use((request: any, response: any, next: () => void) => {
+    const requestId = request.header('x-request-id') || randomUUID();
+    request.requestId = requestId;
+    response.setHeader('x-request-id', requestId);
+    const started = Date.now();
+    response.on('finish', () =>
+      requestLogger.log(
+        JSON.stringify({
+          event: 'http.request',
+          requestId,
+          userId: request.user?.dbUserId,
+          workspaceId: request.workspace?.id,
+          monitorId: request.params?.monitorId ?? request.params?.id,
+          method: request.method,
+          route: request.originalUrl?.split('?')[0],
+          status: response.statusCode,
+          durationMs: Date.now() - started,
+        }),
+      ),
+    );
+    next();
+  });
 
   // Sin esto, NINGÚN onModuleDestroy/beforeApplicationShutdown/
   // onApplicationShutdown corre en SIGTERM/SIGINT: el buffer de PingLog no
@@ -25,27 +51,27 @@ async function bootstrap() {
     // Swagger UI expone la forma completa de la API (rutas, DTOs, ejemplos);
     // no tiene por qué estar accesible públicamente en producción.
     const config = new DocumentBuilder()
-    .setTitle("Uptime Monitor API")
-    .setDescription("API for monitoring server uptime")
-    .setVersion("0.0.1")
-    .addBearerAuth({
-      type: "http",
-      scheme: "bearer",
-      bearerFormat: "JWT",
-      name: "JWT",
-      description: "Enter JWT token",
-      in: "header",
-    })
-    .addTag("uptime")
-    .build();
+      .setTitle('Uptime Monitor API')
+      .setDescription('API for monitoring server uptime')
+      .setVersion('0.0.1')
+      .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      })
+      .addTag('uptime')
+      .build();
 
     const documentFactory = () => SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup("api/docs", app, documentFactory);
+    SwaggerModule.setup('api/docs', app, documentFactory);
   }
 
   app.enableCors(corsOptions);
 
-  app.setGlobalPrefix("api/v1", {
+  app.setGlobalPrefix('api/v1', {
     exclude: routesExcludesPrefix,
   });
 
@@ -54,11 +80,11 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    })
+    }),
   );
 
   app.useGlobalFilters(new PrismaExceptionFilter());
 
-  await app.listen(envs.port ?? 4000, "0.0.0.0");
+  await app.listen(envs.port ?? 4000, '0.0.0.0');
 }
 bootstrap();

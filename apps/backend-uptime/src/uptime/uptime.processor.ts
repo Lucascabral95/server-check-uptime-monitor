@@ -221,6 +221,8 @@ export class UptimeProcessor extends WorkerHost {
       return { transitioned: true };
     });
 
+    await this.dispatchRegionalAssignments(runId, monitor.id, monitor.url, monitor.workspaceId);
+
     this.eventsService?.publish({
       type:
         transitioned && previousStatus !== newStatus ? 'monitor.status_changed' : 'monitor.updated',
@@ -252,6 +254,25 @@ export class UptimeProcessor extends WorkerHost {
     this.logger.log(
       `Monitor ${monitor.name} checked: ${result.success ? 'UP' : 'DOWN'} (${result.durationMs}ms)`,
     );
+  }
+
+  private async dispatchRegionalAssignments(
+    runId: string,
+    monitorId: string,
+    url: string,
+    workspaceId: string | null,
+  ) {
+    if (!this.prisma.probeAgent || !this.prisma.probeAssignment) return;
+    const agents =
+      (await this.prisma.probeAgent.findMany({
+        where: { enabled: true, OR: [{ workspaceId: null }, { workspaceId }] },
+        select: { id: true },
+      })) ?? [];
+    if (!agents.length) return;
+    await this.prisma.probeAssignment.createMany({
+      data: agents.map(agent => ({ agentId: agent.id, runId, monitorId, url })),
+      skipDuplicates: true,
+    });
   }
 
   private isInMaintenance(monitor: any): boolean {

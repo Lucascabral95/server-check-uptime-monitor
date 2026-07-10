@@ -1,0 +1,10 @@
+{
+  "title": "Server Check Platform",
+  "schemaVersion": 39,
+  "panels": [
+    {"type":"timeseries","title":"API request rate","targets":[{"expr":"sum(rate(server_check_http_requests_total[5m]))"}]},
+    {"type":"timeseries","title":"API p95 latency","targets":[{"expr":"histogram_quantile(0.95, sum(rate(server_check_http_request_duration_seconds_bucket[5m])) by (le))"}]},
+    {"type":"stat","title":"Queue depth","targets":[{"expr":"sum(server_check_queue_depth)"}]},
+    {"type":"stat","title":"Active internal alerts","targets":[{"expr":"count(server_check_probe_heartbeat_timestamp_seconds)"}]}
+  ]
+}
