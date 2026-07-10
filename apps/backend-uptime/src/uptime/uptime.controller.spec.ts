@@ -32,6 +32,8 @@ describe('UptimeController', () => {
     findStatsLogsByUptimeId: jest.fn(),
     getIncidents: jest.fn(),
     getIncidentsByUserId: jest.fn(),
+    clearAllQueueJobs: jest.fn(),
+    syncQueueJobs: jest.fn(),
   };
 
   const mockHttpPoolService = {
@@ -128,9 +130,12 @@ describe('UptimeController', () => {
 
       service.findAll.mockResolvedValue(responseMock as any);
 
-      const result = await controller.findAll(pagination as any);
+      const result = await controller.findAll(pagination as any, mockRequest);
 
-      expect(service.findAll).toHaveBeenCalledWith(pagination);
+      expect(service.findAll).toHaveBeenCalledWith(pagination, {
+        dbUserId: mockRequest.user.dbUserId,
+        role: mockRequest.user.role,
+      });
       expect(result).toEqual(responseMock);
     });
   });
@@ -250,17 +255,20 @@ describe('UptimeController', () => {
   describe('getIncidents', () => {
     it('should return incidents for a monitor', async () => {
       const incidents = { data: [], total: 0 };
+      const pagination = { page: 1, limit: 20 };
 
       service.getIncidents.mockResolvedValue(incidents as any);
 
       const result = await controller.getIncidents(
         'uptime-1',
         mockRequest,
+        pagination as any,
       );
 
       expect(service.getIncidents).toHaveBeenCalledWith(
         'uptime-1',
         'user-123',
+        pagination,
       );
       expect(result).toEqual(incidents);
     });
@@ -299,6 +307,30 @@ describe('UptimeController', () => {
 
       expect(mockPingLogBufferService.forceFlush).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Buffer flushed successfully' });
+    });
+  });
+
+  describe('clearQueueJobs', () => {
+    it('should clear all queue jobs', async () => {
+      const resultMock = { message: 'cleared', removedCount: 10 };
+      service.clearAllQueueJobs.mockResolvedValue(resultMock as any);
+
+      const result = await controller.clearQueueJobs();
+
+      expect(service.clearAllQueueJobs).toHaveBeenCalled();
+      expect(result).toEqual(resultMock);
+    });
+  });
+
+  describe('syncQueueJobs', () => {
+    it('should sync queue jobs', async () => {
+      const resultMock = { orphanedRemoved: 2, jobsCreated: 5 };
+      service.syncQueueJobs.mockResolvedValue(resultMock as any);
+
+      const result = await controller.syncQueueJobs();
+
+      expect(service.syncQueueJobs).toHaveBeenCalled();
+      expect(result).toEqual(resultMock);
     });
   });
 });

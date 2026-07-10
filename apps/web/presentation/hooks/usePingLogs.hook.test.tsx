@@ -24,14 +24,27 @@ describe('usePingLogs', () => {
   })
 
   describe('Queries', () => {
-    it('fetches all ping logs successfully', async () => {
-      const mockData = [
-        { id: '1', statusCode: 200, durationMs: 100, success: true },
-        { id: '2', statusCode: 500, durationMs: 200, success: false }
-      ]
+    it('does not fetch all ping logs by default (ADMIN-only endpoint)', () => {
+      const { result } = renderHook(() => usePingLogs(), { wrapper })
+
+      expect(result.current.allPingLogs.fetchStatus).toBe('idle')
+      expect(api.getAllPingLogs).not.toHaveBeenCalled()
+    })
+
+    it('fetches all ping logs when enableAdminList is true', async () => {
+      const mockData = {
+        data: [
+          { id: '1', monitorId: 'm1', statusCode: 200, durationMs: 100, success: true, timestamp: new Date(), createdAt: new Date(), updatedAt: new Date() },
+          { id: '2', monitorId: 'm1', statusCode: 500, durationMs: 200, success: false, timestamp: new Date(), createdAt: new Date(), updatedAt: new Date() },
+        ],
+        pagination: { currentPage: 1, totalPages: 1, nextPage: null, prevPage: null, totalItems: 2, itemsPerPage: 10 },
+      }
       vi.mocked(api.getAllPingLogs).mockResolvedValue(mockData)
 
-      const { result } = renderHook(() => usePingLogs(), { wrapper })
+      const { result } = renderHook(
+        () => usePingLogs(undefined, undefined, { enableAdminList: true }),
+        { wrapper }
+      )
 
       await waitFor(() => expect(result.current.allPingLogs.isSuccess).toBe(true))
 
@@ -70,10 +83,13 @@ describe('usePingLogs', () => {
       expect(api.findAllPingLogsById).toHaveBeenCalledWith(params)
     })
 
-    it('handles query errors', async () => {
+    it('handles query errors when enableAdminList is true', async () => {
       vi.mocked(api.getAllPingLogs).mockRejectedValue(new Error('API Error'))
 
-      const { result } = renderHook(() => usePingLogs(), { wrapper })
+      const { result } = renderHook(
+        () => usePingLogs(undefined, undefined, { enableAdminList: true }),
+        { wrapper }
+      )
 
       await waitFor(() => expect(result.current.allPingLogs.isError).toBe(true))
 
@@ -84,7 +100,6 @@ describe('usePingLogs', () => {
   describe('Mutations', () => {
     it('deletes ping log successfully and invalidates queries', async () => {
       vi.mocked(api.deletePingLogById).mockResolvedValue(undefined)
-      vi.mocked(api.getAllPingLogs).mockResolvedValue([])
 
       const { result } = renderHook(() => usePingLogs(), { wrapper })
 

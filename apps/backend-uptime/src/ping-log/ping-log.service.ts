@@ -34,15 +34,37 @@ export class PingLogService {
     }
   }
   
-  async findAll() {
+  // Antes: findMany() sin where/take, devolvía la tabla entera. Ahora paginado,
+  // igual que findAllPingLogsByUser (el endpoint también pasó a requerir ADMIN).
+  async findAll(paginationDto: PaginationPingLogDto = {}): Promise<PaginatedResponseDto<any>> {
     try {
-      const getAllPingLogs = await this.prisma.pingLog.findMany();
-      
-      if (!getAllPingLogs) {
-        throw new NotFoundException('No ping logs found');
-      }
+      const { page = 1, limit = 10, monitorId } = paginationDto;
+      const skip = (page - 1) * limit;
+      const where = monitorId ? { monitorId } : {};
 
-      return getAllPingLogs;
+      const [data, totalItems] = await Promise.all([
+        this.prisma.pingLog.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { timestamp: 'desc' },
+        }),
+        this.prisma.pingLog.count({ where }),
+      ]);
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return {
+        data,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          nextPage: page < totalPages ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null,
+          totalItems,
+          itemsPerPage: limit,
+        },
+      };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof InternalServerErrorException) {
         throw error;

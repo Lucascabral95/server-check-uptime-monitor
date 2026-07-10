@@ -1,12 +1,12 @@
 import axiosInstance from "@/infraestructure/Api/Axios-config";
-import { PingLogPaginationParams } from "@/infraestructure/interfaces";
+import { PingLogPaginationParams, GetAllPingLogsDto } from "@/infraestructure/interfaces";
 import { isAxiosError } from "axios";
 
-export async function getAllPingLogs() {
+// Solo ADMIN (apps/backend-uptime/src/ping-log/ping-log.controller.ts). Devuelve
+// { data, pagination }, no un array crudo.
+export async function getAllPingLogs(params?: PingLogPaginationParams): Promise<GetAllPingLogsDto> {
     try {
-         const { data } = await axiosInstance.get("/ping-log");
-
-         console.log(data);
+         const { data } = await axiosInstance.get("/ping-log", { params });
 
          return data;
     } catch (error) {

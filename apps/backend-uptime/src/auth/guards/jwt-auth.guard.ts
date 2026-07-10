@@ -1,10 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ExecutionContext, CanActivate } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PayloadUserDto } from '../../user/dto/payload-user.dto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
 import { UserService } from '../../user/user.service';
+import { envs } from '../../config/envs.schema';
 
 interface JwtHeader {
   kid: string;
@@ -38,31 +38,39 @@ export class JwtAuthGuard implements CanActivate {
   private readonly pendingFetches = new Map<string, Promise<string>>();
   private readonly CACHE_DURATION = 300000; // 5 minutos
   private readonly MAX_CACHE_SIZE = 100;
-  private readonly expectedAudience?: string;
-  private readonly expectedIssuer?: string;
+  private readonly expectedAudience: string;
+  private readonly expectedIssuer: string;
 
-  constructor(
-    private readonly userService: UserService,
-    private readonly configService: ConfigService,
-  ) {
-    this.expectedAudience = this.configService.get<string>('COGNITO_CLIENT_ID');
-    this.expectedIssuer = this.configService.get<string>('COGNITO_ISSUER');
+  constructor(private readonly userService: UserService) {
+    // envs.schema.ts ya exige estas dos vars con Joi al arrancar el proceso;
+    // este check es una segunda barrera para que el guard nunca opere en
+    // modo "fail open" si algún día se inyecta de otra forma.
+    if (!envs.cognito_issuer || !envs.cognito_client_id) {
+      throw new Error(
+        'JwtAuthGuard requiere COGNITO_ISSUER y COGNITO_CLIENT_ID configurados',
+      );
+    }
+
+    this.expectedAudience = envs.cognito_client_id;
+    this.expectedIssuer = envs.cognito_issuer;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const token = this.extractToken(request);
-    
+
     const header = this.decodeHeader(token);
     const payload = this.decodePayload(token);
-    
+
     this.validateTokenStructure(header, payload);
-    
-    const publicKey = await this.getCognitoPublicKey(payload.iss, header.kid);
-    const decoded = this.verifyToken(token, publicKey, payload.iss);
-    
+
+    // El JWKS SIEMPRE se resuelve contra el issuer configurado, nunca contra
+    // payload.iss (que es dato sin verificar controlado por quien manda el token).
+    const publicKey = await this.getCognitoPublicKey(header.kid);
+    const decoded = this.verifyToken(token, publicKey);
+
     const dbUser = await this.findOrCreateUser(decoded);
-    
+
     request.user = {
       ...decoded,
       dbUserId: dbUser.id,
@@ -88,8 +96,11 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token inválido: falta kid en header');
     }
 
-    if (!payload.iss?.includes('cognito-idp')) {
-      throw new UnauthorizedException('Token no es de AWS Cognito');
+    // Comparación estricta contra el issuer configurado, NO un substring check:
+    // un `includes('cognito-idp')` deja pasar cualquier host que contenga esa
+    // palabra en la URL (p.ej. https://cognito-idp.atacante.com/...).
+    if (payload.iss !== this.expectedIssuer) {
+      throw new UnauthorizedException('Token issuer inválido');
     }
 
     if (!['access', 'id'].includes(payload.token_use)) {
@@ -98,15 +109,13 @@ export class JwtAuthGuard implements CanActivate {
       );
     }
 
-    if (this.expectedAudience) {
-      const tokenAudience = payload.aud || payload.client_id;
-      if (tokenAudience !== this.expectedAudience) {
-        throw new UnauthorizedException('Token audience inválido');
-      }
-    }
-
-    if (this.expectedIssuer && payload.iss !== this.expectedIssuer) {
-      throw new UnauthorizedException('Token issuer inválido');
+    // Los access tokens de Cognito llevan `client_id`, los ID tokens llevan
+    // `aud` — ninguno de los dos trae ambos, por eso se verifica el que esté
+    // presente. Este check es incondicional: expectedAudience siempre está
+    // seteado (ver constructor).
+    const tokenAudience = payload.aud || payload.client_id;
+    if (tokenAudience !== this.expectedAudience) {
+      throw new UnauthorizedException('Token audience inválido');
     }
   }
 
@@ -133,11 +142,12 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private verifyToken(token: string, publicKey: string, issuer: string): DecodedToken {
+  private verifyToken(token: string, publicKey: string): DecodedToken {
     try {
       return jwt.verify(token, publicKey, {
-        issuer,
-        algorithms: ['RS256'], 
+        issuer: this.expectedIssuer,
+        algorithms: ['RS256'],
+        clockTolerance: 5,
       }) as DecodedToken;
     } catch (error) {
       this.handleVerificationError(error);
@@ -184,8 +194,8 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private async getCognitoPublicKey(iss: string, kid: string): Promise<string> {
-    const cacheKey = `${iss}-${kid}`;
+  private async getCognitoPublicKey(kid: string): Promise<string> {
+    const cacheKey = kid;
     const cached = this.jwksCache.get(cacheKey);
 
     if (cached && Date.now() < cached.expiry) {
@@ -197,7 +207,7 @@ export class JwtAuthGuard implements CanActivate {
       return pendingFetch;
     }
 
-    const fetchPromise = this.fetchAndCachePublicKey(iss, kid, cacheKey);
+    const fetchPromise = this.fetchAndCachePublicKey(kid, cacheKey);
     this.pendingFetches.set(cacheKey, fetchPromise);
 
     try {
@@ -208,12 +218,14 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private async fetchAndCachePublicKey(
-    iss: string,
     kid: string,
     cacheKey: string,
   ): Promise<string> {
-    const jwksUrl = `${iss}/.well-known/jwks.json`;
-    
+    // Construido SIEMPRE a partir del issuer configurado (this.expectedIssuer),
+    // nunca del `iss` del token: si se tomara del token, un atacante podría
+    // apuntar el fetch de JWKS a un host propio (SSRF ciego + impersonación).
+    const jwksUrl = `${this.expectedIssuer}/.well-known/jwks.json`;
+
     let response: Response;
     try {
       response = await fetch(jwksUrl, {

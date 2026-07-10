@@ -1,4 +1,4 @@
-import { 
+import {
   Controller,
   Get,
   Body,
@@ -7,23 +7,26 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
   } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { 
+import {
   DataUserGetDto,
   RequestUserDto,
   UpdateUserDto,
+  PaginationUserDto,
 } from './dto';
-import { 
+import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
@@ -37,11 +40,13 @@ export class UserController {
   @Throttle({ medium: {} })
   @Get()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Obtener todos los usuarios' })
+  @ApiOperation({ summary: 'Obtener todos los usuarios, paginado' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, type: [DataUserGetDto] })
   @ApiResponse({ status: 404, description: 'No users found' })
-  findAll() {
-    return this.userService.findAll();
+  findAll(@Query() paginationDto: PaginationUserDto) {
+    return this.userService.findAll(paginationDto);
   }
   
   @Throttle({ medium: {} })
@@ -53,9 +58,6 @@ export class UserController {
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   findOne(@Param('id') id: string, @Request() req: RequestUserDto) {
-
-    console.log(req.user);
-
     return this.userService.findOne(id, req.user.dbUserId);
   }
   

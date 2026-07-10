@@ -61,6 +61,7 @@ describe('IncidentsDashboard', () => {
         { id: '1', title: 'Incident 1' },
         { id: '2', title: 'Incident 2' },
       ],
+      totalIncidents: 2,
     },
     isLoading: false,
     isError: false,

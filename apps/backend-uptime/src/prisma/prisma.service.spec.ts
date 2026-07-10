@@ -15,4 +15,18 @@ describe('PrismaService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  it('should expose pg pool stats', () => {
+    const stats = service.getPoolStats();
+    expect(stats).toEqual({
+      total: expect.any(Number),
+      idle: expect.any(Number),
+      waiting: expect.any(Number),
+      max: expect.any(Number),
+    });
+  });
+
+  afterAll(async () => {
+    await service.onApplicationShutdown();
+  });
 });

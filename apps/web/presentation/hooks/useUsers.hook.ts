@@ -1,13 +1,20 @@
 import { getUserById, getUsers, updateUserById, deleteUserById } from "@/lib/Resources/Api/UsersApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DataUserGetDto } from "@/infraestructure/interfaces";
+import { DataUserGetDto, GetAllUsersDto } from "@/infraestructure/interfaces";
 
-const useUsers = (id?: string) => {
+interface UseUsersOptions {
+  // GET /user es solo-ADMIN (ver apps/backend-uptime/src/user/user.controller.ts).
+  // Apagada por defecto; un futuro panel admin la prende explícitamente.
+  enableAdminList?: boolean;
+}
+
+const useUsers = (id?: string, options?: UseUsersOptions) => {
   const queryClient = useQueryClient();
 
-  const users = useQuery<DataUserGetDto[]>({
+  const users = useQuery<GetAllUsersDto>({
     queryKey: ["users"],
     queryFn: () => getUsers(),
+    enabled: options?.enableAdminList ?? false,
   });
 
   const userById = useQuery<DataUserGetDto>({

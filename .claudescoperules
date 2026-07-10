@@ -1,12 +1,3 @@
-# Claude Code Scope Rules
-# Defines what Claude can and cannot modify in this repository
-# See: https://docs.claude.com/docs/build-with-claude/claude-code
-
-# ============================================================================
-# CRITICAL - NEVER MODIFY
-# ============================================================================
-# Files that should NEVER be changed under any circumstances
-
 never_modify:
   # Package manager lock files - auto-generated
   - "**/package-lock.json"
@@ -50,11 +41,6 @@ never_modify:
   - "**/*.log"
   - "**/logs/**"
 
-# ============================================================================
-# ASK BEFORE MODIFYING
-# ============================================================================
-# Files that require explicit user confirmation before changes
-
 ask_before_modifying:
   # Core configuration files
   - "package.json"              # Dependencies and scripts
@@ -77,8 +63,8 @@ ask_before_modifying:
   - "azure-pipelines.yml"
   
   # Critical backend files
-  - "**/src/main.ts"           # App entry point
-  - "**/src/app.module.ts"     # Root module
+  - "**/src/main.ts"            
+  - "**/src/app.module.ts"     
   
   # Environment templates
   - "**/.env.example"
@@ -93,10 +79,6 @@ ask_before_modifying:
   - "CONTRIBUTING.md"
   - "CHANGELOG.md"
 
-# ============================================================================
-# SAFE TO MODIFY
-# ============================================================================
-# Files Claude can freely modify after understanding context
 
 safe_to_modify:
   # Source code
@@ -132,10 +114,6 @@ safe_to_modify:
   - "CLAUDE.md"
   - "**/.claude.md"
   - ".claudescoperules"
-
-# ============================================================================
-# MODIFICATION PATTERNS
-# ============================================================================
 
 patterns:
   # When modifying database schema:
@@ -173,10 +151,6 @@ patterns:
     - "Update relevant .claude.md documentation"
     - "Consider impact on both frontend and backend"
 
-# ============================================================================
-# SPECIAL RULES
-# ============================================================================
-
 special_rules:
   # Prisma migrations
   prisma:
@@ -204,10 +178,6 @@ special_rules:
     - "Add TypeScript types for all functions"
     - "Write descriptive commit-ready summaries"
 
-# ============================================================================
-# WORKFLOW GUIDANCE
-# ============================================================================
-
 workflows:
   # Before making changes:
   before_changes:
@@ -230,10 +200,6 @@ workflows:
     - "Look for similar issues in the codebase"
     - "Explain the root cause before fixing"
     - "Suggest preventive measures"
-
-# ============================================================================
-# PROJECT-SPECIFIC CONVENTIONS
-# ============================================================================
 
 conventions:
   # Naming
@@ -263,10 +229,6 @@ conventions:
     - "Document public APIs with JSDoc"
     - "Explain 'why' not 'what' in comments"
     - "Keep comments up-to-date with code"
-
-# ============================================================================
-# REMINDERS
-# ============================================================================
 
 always_remember:
   - "This is a production monitoring application - reliability is critical"

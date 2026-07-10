@@ -1,20 +1,22 @@
 import axiosInstance from "@/infraestructure/Api/Axios-config";
 import { isAxiosError } from "axios";
+import { GetAllUsersDto } from "@/infraestructure/interfaces";
 
-export async function getUsers() {
+// Solo ADMIN (apps/backend-uptime/src/user/user.controller.ts). Devuelve
+// { data, pagination }, no un array crudo.
+export async function getUsers(params?: { page?: number; limit?: number }): Promise<GetAllUsersDto> {
     try {
-        const { data } = await axiosInstance.get("/user");
-        
-        console.log(data);
+        const { data } = await axiosInstance.get("/user", { params });
 
         return data;
     } catch (error) {
         if (isAxiosError(error)) {
     const status = error.response?.status ?? null;
-    const message = error.response?.data?.message || 
+    const message = error.response?.data?.message ||
          error.message || "Error al obtener los usuarios";
          throw { status, message };
         }
+        throw error;
     }
 }
 

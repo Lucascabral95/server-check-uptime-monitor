@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDate, IsNumber, IsOptional, IsString, IsUrl, IsUUID, Max, Min } from 'class-validator';
+import { IsSafeMonitorUrl } from 'src/common/security/is-safe-monitor-url.decorator';
 
 export class CreateUptimeDto {
     @ApiProperty({ example: 'Mi API Principal' })
@@ -7,7 +8,8 @@ export class CreateUptimeDto {
     name: string;
 
     @ApiProperty({ example: 'https://miapi.com/health' })
-    @IsUrl()
+    @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+    @IsSafeMonitorUrl()
     url: string;
 
     @ApiProperty({ example: 300, description: 'Frecuencia en segundos' })

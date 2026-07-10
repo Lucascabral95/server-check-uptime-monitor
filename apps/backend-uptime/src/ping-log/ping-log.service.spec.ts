@@ -267,23 +267,40 @@ describe('PingLogService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all ping logs', async () => {
+    it('should return a paginated page of ping logs', async () => {
       const logs = [{ id: '1' }, { id: '2' }];
       mockPrismaService.pingLog.findMany.mockResolvedValue(logs);
+      mockPrismaService.pingLog.count.mockResolvedValue(2);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(logs);
-      expect(prisma.pingLog.findMany).toHaveBeenCalledWith();
+      expect(result).toEqual({
+        data: logs,
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          nextPage: null,
+          prevPage: null,
+          totalItems: 2,
+          itemsPerPage: 10,
+        },
+      });
+      expect(prisma.pingLog.findMany).toHaveBeenCalledWith({
+        where: {},
+        skip: 0,
+        take: 10,
+        orderBy: { timestamp: 'desc' },
+      });
     });
 
-    it('should return empty array if no logs found', async () => {
+    it('should return an empty page if no logs found', async () => {
       mockPrismaService.pingLog.findMany.mockResolvedValue([]);
+      mockPrismaService.pingLog.count.mockResolvedValue(0);
 
       const result = await service.findAll();
 
-      expect(result).toEqual([]);
-      expect(prisma.pingLog.findMany).toHaveBeenCalledWith();
+      expect(result.data).toEqual([]);
+      expect(result.pagination.totalItems).toBe(0);
     });
 
     it('should handle Prisma connection timeout error (P2024)', async () => {

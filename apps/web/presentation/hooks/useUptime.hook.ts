@@ -9,8 +9,6 @@ import {
     createUptime,
     updateUptimeById,
     deleteUptimeById,
-    getStatsUptime,
-    forceFlushUptime,
     getMyStatsUser,
     getStatsLogsByUptimeId,
     getIncidents,
@@ -41,11 +39,6 @@ const useUptime = (id?: string, params?: PaginationParams) => {
         queryKey: ["uptimeById", id],
         queryFn: () => getUptimeById(id!),
         enabled: !!id,
-    });
-
-    const stats = useQuery({
-        queryKey: ["uptimeStats"],
-        queryFn: () => getStatsUptime(),
     });
 
     const myStats = useQuery<GetStatsUserInterface>({
@@ -94,17 +87,9 @@ const useUptime = (id?: string, params?: PaginationParams) => {
         },
     });
 
-    const flushMutation = useMutation({
-        mutationFn: () => forceFlushUptime(),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["uptimeStats"] });
-        },
-    });
-
     return {
         uptimes,
         uptimeById,
-        stats,
         myStats,
         statsLogsByUptimeId,
         getIncidentsByMonitorId,
@@ -112,7 +97,6 @@ const useUptime = (id?: string, params?: PaginationParams) => {
         createUptime: createMutation,
         updateUptime: updateMutation,
         deleteUptime: deleteMutation,
-        flushUptime: flushMutation,
     };
 };
 

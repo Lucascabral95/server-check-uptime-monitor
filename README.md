@@ -774,5 +774,5 @@ Este proyecto está bajo la licencia [UNLICENSED](LICENSE).
 ---
 
 <p align="center">
-  Construido con :heart: usando <a href="https://nestjs.com/">NestJS</a> y <a href="https://nextjs.org/">Next.js</a>
+  Construido con ❤️ usando <a href="https://nestjs.com/">NestJS</a> y <a href="https://nextjs.org/">Next.js</a>
 </p>

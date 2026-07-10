@@ -58,7 +58,6 @@ El filtro global ya está configurado en [`main.ts`](../main.ts). Los errores de
 @Injectable()
 export class UserService {
   async findById(id: string) {
-    // No necesitas try-catch
     return await this.prisma.user.findUnique({
       where: { id },
     });

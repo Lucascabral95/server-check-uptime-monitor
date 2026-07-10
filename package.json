@@ -12,9 +12,12 @@
     "dev:frontend": "cd apps/web && npm run dev",
     "build-test:frontend": "cd apps/web && npm run build && npm test",
     "build-test:backend": "cd apps/backend-uptime && npm run build && npm test",
+    "build-test:full-project": "npm run build-test:frontend && npm run build-test:backend",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "docker:backend": "cd apps/backend-uptime && docker-compose up --build -d backend-uptime"
+    "docker:backend": "cd apps/backend-uptime && docker-compose up --build -d backend-uptime",
+    "build:start:frontend": "cd apps/web && npm run build && npm start",
+    "start:frontend": "cd apps/web && npm start"
   },
   "keywords": [],
   "author": "Lucas Cabral Dev",

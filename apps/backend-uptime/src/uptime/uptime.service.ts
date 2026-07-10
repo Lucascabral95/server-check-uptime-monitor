@@ -13,6 +13,7 @@ import { PaginationUptimeDto, PaginatedResponseDto, SortBy, PaginationIncidentsD
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
 import { Queue } from 'bullmq';
+import { Prisma, Incident } from '@prisma/client';
 import {
   GetStatsUserDto,
   GetStatsLogsByUptimeIdDto,
@@ -80,23 +81,39 @@ export class UptimeService {
         }
     }
 
-    async findAll(paginationDto: PaginationUptimeDto = {}): Promise<PaginatedResponseDto<any>> {
+    // `requestingUser` es SIEMPRE el usuario autenticado (req.user), nunca un
+    // valor de query string: los filtros `userId`/`email` del DTO solo se
+    // honran para ADMIN. Para USER/GUEST el resultado se fuerza a sus propios
+    // monitores, sin importar qué venga en la query — antes cualquiera podía
+    // pedir `?userId=<otro>` o `?email=<otro>` y enumerar monitores ajenos.
+    async findAll(
+        paginationDto: PaginationUptimeDto = {},
+        requestingUser: { dbUserId: string; role: string },
+    ): Promise<PaginatedResponseDto<any>> {
         try {
-            const { page = 1, 
-              limit = 10, 
-              userId, 
-              status, 
-              sortBy = SortBy.RECENT, 
-              search, 
+            const { page = 1,
+              limit = 10,
+              userId,
+              status,
+              sortBy = SortBy.RECENT,
+              search,
               includeInactive = false,
               email,
              } = paginationDto;
             const skip = (page - 1) * limit;
 
             const where: any = {};
+            const isAdmin = requestingUser.role === 'ADMIN';
 
-            if (userId) {
-                where.userId = userId;
+            if (isAdmin) {
+                if (userId) {
+                    where.userId = userId;
+                }
+                if (email) {
+                    where.user = { email };
+                }
+            } else {
+                where.userId = requestingUser.dbUserId;
             }
 
             if (status) {
@@ -105,12 +122,6 @@ export class UptimeService {
 
             if (!includeInactive) {
                 where.isActive = true;
-            }
-
-            if (email) {
-                where.user = {
-                    email: email
-                };
             }
 
             if (search) {
@@ -232,6 +243,17 @@ export class UptimeService {
                     monitorUpdated.frequency,
                     monitorUpdated.isActive ?? true,
                 );
+            }
+
+            // Si se desactiva el monitor, el processor va a hacer early-return
+            // en cada check futuro (isActive check en uptime.processor.ts) y
+            // JAMÁS va a correr la transición DOWN->UP que cierra un incidente.
+            // Sin esto, un incidente ONGOING queda abierto para siempre.
+            if (updateUptimeDto.isActive === false) {
+                await this.prisma.incident.updateMany({
+                    where: { monitorId: id, status: 'ONGOING' },
+                    data: { status: 'RESOLVED', endedAt: new Date() },
+                });
             }
 
             return {
@@ -636,57 +658,61 @@ export class UptimeService {
     }
   }
 
+  // Reemplaza el viejo cálculo que traía TODOS los ping_logs de la ventana a
+  // memoria y los recorría en JS para sumar gaps de downtime. Ahora que los
+  // incidentes están materializados (ver uptime.processor.ts), esto es una
+  // sola agregación SQL sobre `incidents`, que tiene órdenes de magnitud
+  // menos filas que `ping_logs` para el mismo monitor.
+  //
+  // Cada incidente aporta el solapamiento de su intervalo [startedAt, endedAt
+  // ?? toDate] con la ventana [sinceDate, toDate], recortado en ambos
+  // extremos. Un incidente ONGOING se trata como si terminara en `toDate`
+  // (que en la práctica es "ahora"). Uno que empezó antes de `sinceDate` y
+  // sigue abierto después de `toDate` aporta la ventana completa.
   private async calculateDowntime(
     monitorId: string,
     sinceDate: Date,
     toDate: Date = new Date(),
   ): Promise<number> {
     try {
-      const logs = await this.prisma.pingLog.findMany({
-        where: {
-          monitorId,
-          timestamp: {
-            gte: sinceDate,
-            lte: toDate,
-          },
-        },
-        orderBy: { timestamp: 'asc' },
-        select: {
-          timestamp: true,
-          success: true,
-        },
-      });
+      const rows = await this.prisma.$queryRaw<{ downtime_ms: bigint }[]>(Prisma.sql`
+        SELECT COALESCE(SUM(
+          EXTRACT(EPOCH FROM (
+            LEAST(COALESCE(ended_at, ${toDate}::timestamptz), ${toDate}::timestamptz)
+            - GREATEST(started_at, ${sinceDate}::timestamptz)
+          ))
+        ) * 1000, 0)::bigint AS downtime_ms
+        FROM incidents
+        WHERE monitor_id = ${monitorId}
+          AND started_at < ${toDate}::timestamptz
+          AND COALESCE(ended_at, ${toDate}::timestamptz) > ${sinceDate}::timestamptz
+      `);
 
-      if (logs.length === 0) {
-        return 0;
-      }
-
-      let downtimeMs = 0;
-      let inDowntime = false;
-      let downtimeStart: Date | null = null;
-
-      for (const log of logs) {
-        if (!log.success && !inDowntime) {
-          inDowntime = true;
-          downtimeStart = log.timestamp;
-        } else if (log.success && inDowntime && downtimeStart) {
-          downtimeMs += log.timestamp.getTime() - downtimeStart.getTime();
-          inDowntime = false;
-          downtimeStart = null;
-        }
-      }
-
-      if (inDowntime && downtimeStart) {
-        downtimeMs += toDate.getTime() - downtimeStart.getTime();
-      }
-
-      return downtimeMs;
+      return Number(rows[0]?.downtime_ms ?? 0);
     } catch (error) {
       this.logger.error(
         `Error calculating downtime for monitor ${monitorId}: ${error.message}`,
       );
       return 0;
     }
+  }
+
+  private toIncidentDto(incident: Incident, now: Date = new Date()): IncidentDto {
+    const endTime = incident.endedAt;
+    const durationMs = (endTime ?? now).getTime() - incident.startedAt.getTime();
+
+    return {
+      id: incident.id,
+      monitorId: incident.monitorId,
+      startTime: incident.startedAt,
+      endTime,
+      durationMs,
+      duration: this.formatDuration(durationMs),
+      status: incident.status,
+      affectedChecks: incident.affectedChecks,
+      firstError: incident.firstError ?? undefined,
+      lastError: incident.lastError ?? undefined,
+    };
   }
 
   private formatDuration(ms: number): string {
@@ -705,128 +731,47 @@ export class UptimeService {
     return parts.join(' ');
   }
 
-  // Obtiene la lista de incidentes (períodos de caída) de un monitor
-  // Agrupa logs fallidos consecutivos en incidentes individuales
-  async getIncidents(monitorId: string, userId: string): Promise<GetIncidentsDto> {
+  // Lee directamente la tabla Incident (materializada por uptime.processor.ts
+  // en cada transición de estado), paginada. Reemplaza el viejo findMany sin
+  // límite sobre TODOS los ping_logs del monitor + reconstrucción en JS.
+  async getIncidents(
+    monitorId: string,
+    userId: string,
+    paginationDto?: PaginationIncidentsDto,
+  ): Promise<GetIncidentsDto> {
     await this.verifyOwnerMonitorByUserId(monitorId, userId);
 
     try {
-      const logs = await this.prisma.pingLog.findMany({
-        where: {
-          monitorId,
-        },
-        orderBy: {
-          timestamp: 'asc',
-        },
-        select: {
-          id: true,
-          timestamp: true,
-          success: true,
-          error: true,
-          statusCode: true,
-        },
-      });
+      const { page = 1, limit = 20 } = paginationDto || {};
+      const skip = (page - 1) * limit;
+      const epoch = new Date(0);
+      const now = new Date();
 
-      if (logs.length === 0) {
-        return {
-          monitorId,
-          incidents: [],
-          totalIncidents: 0,
-          totalDowntime: '0s',
-          totalDowntimeMs: 0,
-          ongoingIncidents: 0,
-        };
-      }
-
-      const monitor = await this.prisma.monitor.findUnique({
-        where: { id: monitorId },
-        select: { status: true },
-      });
-
-      const isCurrentlyDown = monitor?.status === 'DOWN';
-
-      const incidents: IncidentDto[] = [];
-      let currentIncident: Partial<IncidentDto> | null = null;
-      let totalDowntimeMs = 0;
-
-      for (let i = 0; i < logs.length; i++) {
-        const log = logs[i];
-
-        if (!log.success) {
-          if (!currentIncident) {
-            currentIncident = {
-              id: `incident-${log.timestamp.getTime()}-${monitorId}`,
-              monitorId,
-              startTime: log.timestamp,
-              endTime: null,
-              durationMs: 0,
-              duration: '',
-              status: 'ONGOING',
-              affectedChecks: 1,
-              firstError: log.error || `HTTP ${log.statusCode}`,
-              lastError: log.error || `HTTP ${log.statusCode}`,
-            };
-          } else {
-            currentIncident.affectedChecks!++;
-            currentIncident.lastError = log.error || `HTTP ${log.statusCode}`;
-          }
-        } else {
-          if (currentIncident) {
-            const endTime = log.timestamp;
-            const durationMs = endTime.getTime() - currentIncident.startTime!.getTime();
-
-            incidents.push({
-              id: currentIncident.id!,
-              monitorId: currentIncident.monitorId!,
-              startTime: currentIncident.startTime!,
-              endTime,
-              durationMs,
-              duration: this.formatDuration(durationMs),
-              status: 'RESOLVED',
-              affectedChecks: currentIncident.affectedChecks!,
-              firstError: currentIncident.firstError,
-              lastError: currentIncident.lastError,
-            });
-
-            totalDowntimeMs += durationMs;
-            currentIncident = null;
-          }
-        }
-      }
-
-      if (currentIncident) {
-        const endTime = isCurrentlyDown ? null : new Date();
-        const durationMs = endTime
-          ? endTime.getTime() - currentIncident.startTime!.getTime()
-          : Date.now() - currentIncident.startTime!.getTime();
-
-        incidents.push({
-          id: currentIncident.id!,
-          monitorId: currentIncident.monitorId!,
-          startTime: currentIncident.startTime!,
-          endTime,
-          durationMs,
-          duration: this.formatDuration(durationMs),
-          status: isCurrentlyDown ? 'ONGOING' : 'RESOLVED',
-          affectedChecks: currentIncident.affectedChecks!,
-          firstError: currentIncident.firstError,
-          lastError: currentIncident.lastError,
-        });
-
-        totalDowntimeMs += durationMs;
-      }
-
-      incidents.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
-
-      const ongoingCount = incidents.filter((i) => i.status === 'ONGOING').length;
+      const [incidents, totalIncidents, ongoingIncidents, totalDowntimeMs] = await Promise.all([
+        this.prisma.incident.findMany({
+          where: { monitorId },
+          orderBy: { startedAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.incident.count({ where: { monitorId } }),
+        this.prisma.incident.count({ where: { monitorId, status: 'ONGOING' } }),
+        this.calculateDowntime(monitorId, epoch, now),
+      ]);
 
       return {
         monitorId,
-        incidents,
-        totalIncidents: incidents.length,
+        incidents: incidents.map((incident) => this.toIncidentDto(incident, now)),
+        totalIncidents,
         totalDowntime: this.formatDuration(totalDowntimeMs),
         totalDowntimeMs,
-        ongoingIncidents: ongoingCount,
+        ongoingIncidents,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalIncidents / limit),
+          totalItems: totalIncidents,
+          itemsPerPage: limit,
+        },
       };
     } catch (error) {
       if (
@@ -840,200 +785,45 @@ export class UptimeService {
     }
   }
 
-  // Obtiene todos los incidentes de todos los monitores del usuario
-  // Retorna incidentes agrupados con información del monitor
+  // Antes: 1 findMany(monitors) + un findMany(ping_logs) SIN LÍMITE por cada
+  // monitor (N+1), reconstruyendo incidentes en JS y ordenando/paginando en
+  // memoria. Ahora: la lista paginada sale de un solo query sobre `incidents`
+  // (o un raw query cuando se ordena por duración, ver más abajo), y el
+  // resumen por monitor sale de un GROUP BY. Ninguno de los dos escala con la
+  // cantidad de ping_logs históricos.
   async getIncidentsByUserId(userId: string, paginationDto?: PaginationIncidentsDto): Promise<GetIncidentsByUserIdDto> {
     try {
-      const { search, sortBy = IncidentSortBy.RECENT } = paginationDto || {};
+      const { page = 1, limit = 20, search, sortBy = IncidentSortBy.RECENT } = paginationDto || {};
+      const skip = (page - 1) * limit;
+      const now = new Date();
 
-      const monitorWhere: any = { userId, isActive: true };
-
-      if (search) {
-        monitorWhere.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { url: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-
-      const monitors = await this.prisma.monitor.findMany({
-        where: monitorWhere,
-        select: {
-          id: true,
-          name: true,
-          url: true,
-          status: true,
-        },
-      });
-
-      if (monitors.length === 0) {
-        return {
-          userId,
-          incidents: [],
-          byMonitor: [],
-          totalIncidents: 0,
-          totalDowntime: '0s',
-          totalDowntimeMs: 0,
-          ongoingIncidents: 0,
-          totalMonitors: 0,
-          monitorsDown: 0,
-        };
-      }
-
-      const allIncidents: IncidentWithMonitorDto[] = [];
-      const byMonitor: MonitorIncidentSummaryDto[] = [];
-      let totalDowntimeMs = 0;
-      let monitorsDown = 0;
-
-      for (const monitor of monitors) {
-        const logs = await this.prisma.pingLog.findMany({
-          where: { monitorId: monitor.id },
-          orderBy: { timestamp: 'asc' },
-          select: {
-            id: true,
-            timestamp: true,
-            success: true,
-            error: true,
-            statusCode: true,
-          },
-        });
-
-        const isCurrentlyDown = monitor.status === 'DOWN';
-        if (isCurrentlyDown) monitorsDown++;
-
-        const monitorIncidents: IncidentWithMonitorDto[] = [];
-        let currentIncident: Partial<IncidentWithMonitorDto> | null = null;
-        let monitorDowntimeMs = 0;
-
-        for (const log of logs) {
-          if (!log.success) {
-            if (!currentIncident) {
-              currentIncident = {
-                id: `incident-${log.timestamp.getTime()}-${monitor.id}`,
-                monitorId: monitor.id,
-                monitorName: monitor.name,
-                monitorUrl: monitor.url,
-                monitorStatus: monitor.status,
-                startTime: log.timestamp,
-                endTime: null,
-                durationMs: 0,
-                duration: '',
-                status: 'ONGOING',
-                affectedChecks: 1,
-                firstError: log.error || `HTTP ${log.statusCode}`,
-                lastError: log.error || `HTTP ${log.statusCode}`,
-              };
-            } else {
-              currentIncident.affectedChecks!++;
-              currentIncident.lastError = log.error || `HTTP ${log.statusCode}`;
-            }
-          } else {
-            if (currentIncident) {
-              const endTime = log.timestamp;
-              const durationMs = endTime.getTime() - currentIncident.startTime!.getTime();
-
-              monitorIncidents.push({
-                id: currentIncident.id!,
-                monitorId: currentIncident.monitorId!,
-                monitorName: currentIncident.monitorName!,
-                monitorUrl: currentIncident.monitorUrl!,
-                monitorStatus: currentIncident.monitorStatus!,
-                startTime: currentIncident.startTime!,
-                endTime,
-                durationMs,
-                duration: this.formatDuration(durationMs),
-                status: 'RESOLVED',
-                affectedChecks: currentIncident.affectedChecks!,
-                firstError: currentIncident.firstError,
-                lastError: currentIncident.lastError,
-              });
-
-              monitorDowntimeMs += durationMs;
-              currentIncident = null;
-            }
-          }
-        }
-
-        if (currentIncident) {
-          const endTime = isCurrentlyDown ? null : new Date();
-          const durationMs = endTime
-            ? endTime.getTime() - currentIncident.startTime!.getTime()
-            : Date.now() - currentIncident.startTime!.getTime();
-
-          monitorIncidents.push({
-            id: currentIncident.id!,
-            monitorId: currentIncident.monitorId!,
-            monitorName: currentIncident.monitorName!,
-            monitorUrl: currentIncident.monitorUrl!,
-            monitorStatus: currentIncident.monitorStatus!,
-            startTime: currentIncident.startTime!,
-            endTime,
-            durationMs,
-            duration: this.formatDuration(durationMs),
-            status: isCurrentlyDown ? 'ONGOING' : 'RESOLVED',
-            affectedChecks: currentIncident.affectedChecks!,
-            firstError: currentIncident.firstError,
-            lastError: currentIncident.lastError,
-          });
-
-          monitorDowntimeMs += durationMs;
-        }
-
-        allIncidents.push(...monitorIncidents);
-        totalDowntimeMs += monitorDowntimeMs;
-
-        const hasOngoingIncident = monitorIncidents.some((i) => i.status === 'ONGOING');
-        byMonitor.push({
-          monitorId: monitor.id,
-          monitorName: monitor.name,
-          monitorUrl: monitor.url,
-          monitorStatus: monitor.status,
-          incidentCount: monitorIncidents.length,
-          hasOngoingIncident,
-          totalDowntime: this.formatDuration(monitorDowntimeMs),
-          totalDowntimeMs: monitorDowntimeMs,
-        });
-      }
-
-      allIncidents.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+      const [byMonitor, totalIncidents, ongoingIncidents, incidents] = await Promise.all([
+        this.getMonitorIncidentSummaries(userId, search, now),
+        this.countIncidentsByUserId(userId, search),
+        this.prisma.incident.count({ where: { userId, status: 'ONGOING' } }),
+        this.findIncidentsPageByUserId(userId, search, sortBy, skip, limit, now),
+      ]);
 
       byMonitor.sort((a, b) => b.incidentCount - a.incidentCount);
-
-      // Apply sorting based on sortBy parameter
-      if (sortBy) {
-        switch (sortBy) {
-          case IncidentSortBy.RECENT:
-            allIncidents.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
-            break;
-          case IncidentSortBy.OLDEST:
-            allIncidents.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-            break;
-          case IncidentSortBy.NAME_ASC:
-            allIncidents.sort((a, b) => a.monitorName.localeCompare(b.monitorName));
-            break;
-          case IncidentSortBy.NAME_DESC:
-            allIncidents.sort((a, b) => b.monitorName.localeCompare(a.monitorName));
-            break;
-          case IncidentSortBy.DURATION_LONGEST:
-            allIncidents.sort((a, b) => b.durationMs - a.durationMs);
-            break;
-          case IncidentSortBy.DURATION_SHORTEST:
-            allIncidents.sort((a, b) => a.durationMs - b.durationMs);
-            break;
-        }
-      }
-
-      const ongoingCount = allIncidents.filter((i) => i.status === 'ONGOING').length;
+      const totalDowntimeMs = byMonitor.reduce((sum, m) => sum + m.totalDowntimeMs, 0);
+      const monitorsDown = byMonitor.filter((m) => m.monitorStatus === 'DOWN').length;
 
       return {
         userId,
-        incidents: allIncidents,
+        incidents,
         byMonitor,
-        totalIncidents: allIncidents.length,
+        totalIncidents,
         totalDowntime: this.formatDuration(totalDowntimeMs),
         totalDowntimeMs,
-        ongoingIncidents: ongoingCount,
-        totalMonitors: monitors.length,
+        ongoingIncidents,
+        totalMonitors: byMonitor.length,
         monitorsDown,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalIncidents / limit),
+          totalItems: totalIncidents,
+          itemsPerPage: limit,
+        },
       };
     } catch (error) {
       if (
@@ -1045,5 +835,193 @@ export class UptimeService {
       }
       throw handlePrismaError(error, 'Error getting incidents by user id');
     }
+  }
+
+  private async countIncidentsByUserId(userId: string, search?: string): Promise<number> {
+    if (!search) {
+      return this.prisma.incident.count({ where: { userId } });
+    }
+
+    return this.prisma.incident.count({
+      where: {
+        userId,
+        monitor: {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { url: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      },
+    });
+  }
+
+  // GROUP BY sobre monitores activos del usuario (LEFT JOIN a incidents para
+  // que un monitor sin incidentes todavía aparezca con count 0), igual que el
+  // `monitorWhere: { userId, isActive: true }` de la implementación vieja.
+  private async getMonitorIncidentSummaries(
+    userId: string,
+    search: string | undefined,
+    now: Date,
+  ): Promise<MonitorIncidentSummaryDto[]> {
+    const searchClause = search
+      ? Prisma.sql`AND (m.name ILIKE ${'%' + search + '%'} OR m.url ILIKE ${'%' + search + '%'})`
+      : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        monitorId: string;
+        monitorName: string;
+        monitorUrl: string;
+        monitorStatus: string;
+        incidentCount: number;
+        hasOngoingIncident: boolean;
+        totalDowntimeMs: bigint;
+      }>
+    >(Prisma.sql`
+      SELECT
+        m.id AS "monitorId",
+        m.name AS "monitorName",
+        m.url AS "monitorUrl",
+        m.status AS "monitorStatus",
+        COUNT(i.id)::int AS "incidentCount",
+        COALESCE(BOOL_OR(i.status = 'ONGOING'), false) AS "hasOngoingIncident",
+        COALESCE(SUM(
+          EXTRACT(EPOCH FROM (COALESCE(i.ended_at, ${now}::timestamptz) - i.started_at))
+        ) * 1000, 0)::bigint AS "totalDowntimeMs"
+      FROM monitors m
+      LEFT JOIN incidents i ON i.monitor_id = m.id
+      WHERE m.user_id = ${userId} AND m.is_active = true
+      ${searchClause}
+      GROUP BY m.id, m.name, m.url, m.status
+    `);
+
+    return rows.map((row) => ({
+      monitorId: row.monitorId,
+      monitorName: row.monitorName,
+      monitorUrl: row.monitorUrl,
+      monitorStatus: row.monitorStatus as any,
+      incidentCount: row.incidentCount,
+      hasOngoingIncident: row.hasOngoingIncident,
+      totalDowntime: this.formatDuration(Number(row.totalDowntimeMs)),
+      totalDowntimeMs: Number(row.totalDowntimeMs),
+    }));
+  }
+
+  private async findIncidentsPageByUserId(
+    userId: string,
+    search: string | undefined,
+    sortBy: IncidentSortBy,
+    skip: number,
+    limit: number,
+    now: Date,
+  ): Promise<IncidentWithMonitorDto[]> {
+    // "duration" no es una columna: es endedAt ?? now() - startedAt. Prisma
+    // no puede ordenar por un cálculo, así que estos dos casos van por SQL
+    // crudo (con su propio LIMIT/OFFSET — sigue sin traer todo a memoria).
+    if (sortBy === IncidentSortBy.DURATION_LONGEST || sortBy === IncidentSortBy.DURATION_SHORTEST) {
+      return this.findIncidentsPageByUserIdSortedByDuration(
+        userId,
+        search,
+        sortBy === IncidentSortBy.DURATION_LONGEST ? 'DESC' : 'ASC',
+        skip,
+        limit,
+        now,
+      );
+    }
+
+    const where: Prisma.IncidentWhereInput = { userId };
+    if (search) {
+      where.monitor = {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { url: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const orderByMap: Record<IncidentSortBy, Prisma.IncidentOrderByWithRelationInput> = {
+      [IncidentSortBy.RECENT]: { startedAt: 'desc' },
+      [IncidentSortBy.OLDEST]: { startedAt: 'asc' },
+      [IncidentSortBy.NAME_ASC]: { monitor: { name: 'asc' } },
+      [IncidentSortBy.NAME_DESC]: { monitor: { name: 'desc' } },
+      [IncidentSortBy.DURATION_LONGEST]: { startedAt: 'desc' },
+      [IncidentSortBy.DURATION_SHORTEST]: { startedAt: 'desc' },
+    };
+
+    const incidents = await this.prisma.incident.findMany({
+      where,
+      orderBy: orderByMap[sortBy] ?? { startedAt: 'desc' },
+      skip,
+      take: limit,
+      include: { monitor: { select: { name: true, url: true, status: true } } },
+    });
+
+    return incidents.map((incident) => ({
+      ...this.toIncidentDto(incident, now),
+      monitorName: incident.monitor.name,
+      monitorUrl: incident.monitor.url,
+      monitorStatus: incident.monitor.status as any,
+    }));
+  }
+
+  private async findIncidentsPageByUserIdSortedByDuration(
+    userId: string,
+    search: string | undefined,
+    direction: 'DESC' | 'ASC',
+    skip: number,
+    limit: number,
+    now: Date,
+  ): Promise<IncidentWithMonitorDto[]> {
+    const searchClause = search
+      ? Prisma.sql`AND (m.name ILIKE ${'%' + search + '%'} OR m.url ILIKE ${'%' + search + '%'})`
+      : Prisma.empty;
+    const orderClause = direction === 'DESC' ? Prisma.sql`DESC` : Prisma.sql`ASC`;
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        monitorId: string;
+        status: string;
+        startedAt: Date;
+        endedAt: Date | null;
+        affectedChecks: number;
+        firstError: string | null;
+        lastError: string | null;
+        monitorName: string;
+        monitorUrl: string;
+        monitorStatus: string;
+        durationMs: bigint;
+      }>
+    >(Prisma.sql`
+      SELECT
+        i.id, i.monitor_id AS "monitorId", i.status,
+        i.started_at AS "startedAt", i.ended_at AS "endedAt",
+        i.affected_checks AS "affectedChecks",
+        i.first_error AS "firstError", i.last_error AS "lastError",
+        m.name AS "monitorName", m.url AS "monitorUrl", m.status AS "monitorStatus",
+        (EXTRACT(EPOCH FROM (COALESCE(i.ended_at, ${now}::timestamptz) - i.started_at)) * 1000)::bigint AS "durationMs"
+      FROM incidents i
+      JOIN monitors m ON m.id = i.monitor_id
+      WHERE i.user_id = ${userId}
+      ${searchClause}
+      ORDER BY "durationMs" ${orderClause}
+      LIMIT ${limit} OFFSET ${skip}
+    `);
+
+    return rows.map((row) => ({
+      id: row.id,
+      monitorId: row.monitorId,
+      monitorName: row.monitorName,
+      monitorUrl: row.monitorUrl,
+      monitorStatus: row.monitorStatus as any,
+      startTime: row.startedAt,
+      endTime: row.endedAt,
+      durationMs: Number(row.durationMs),
+      duration: this.formatDuration(Number(row.durationMs)),
+      status: row.status as any,
+      affectedChecks: row.affectedChecks,
+      firstError: row.firstError ?? undefined,
+      lastError: row.lastError ?? undefined,
+    }));
   }
 }

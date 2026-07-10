@@ -31,7 +31,10 @@ const MonitorStatsOverview = ({ monitor, stats24h }: MonitorStatsOverviewProps) 
 
         <div className="stat-card">
           <span className="label">Último chequeo</span>
-          <span className="value"> {monitor?.monitor?.lastCheck.toLocaleString().split("T")[0]} </span>
+          {/* <span className="value"> {monitor?.monitor?.lastCheck.toLocaleString().split("T")[0]} </span> */}
+          <span className="value">
+  {monitor?.monitor?.lastCheck ? new Date(monitor.monitor.lastCheck).toISOString().split("T")[0] : ''}
+</span>
           <span className="sub">Chequeado cada {formatInterval(monitor?.monitor?.frequency)}</span>
         </div>
 

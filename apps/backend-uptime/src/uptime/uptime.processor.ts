@@ -7,8 +7,12 @@ import { Logger } from '@nestjs/common';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
 import { HttpPoolService } from './services/http-pool.service';
 import { EmailService } from 'src/email/email.service';
+import { envs } from 'src/config/envs.schema';
 
-@Processor(QUEUES_NAME.UPTIME_MONITOR)
+// Seguro desde que uptime.service.ts hace el update de estado + incidente
+// dentro de una transacción CAS (updateMany condicionado al status previo):
+// dos jobs concurrentes del mismo monitor nunca duplican incidente ni email.
+@Processor(QUEUES_NAME.UPTIME_MONITOR, { concurrency: envs.worker_concurrency })
 export class UptimeProcessor extends WorkerHost {
     private readonly logger = new Logger(UptimeProcessor.name);
 
@@ -45,6 +49,7 @@ export class UptimeProcessor extends WorkerHost {
                 where: { id: monitorId },
                 select: {
                     id: true,
+                    userId: true,
                     name: true,
                     url: true,
                     frequency: true,
@@ -117,18 +122,67 @@ export class UptimeProcessor extends WorkerHost {
             error: result.error,
         });
 
-        // 4. Actualizar estado del monitor
+        // 4. Actualizar estado del monitor + abrir/cerrar incidente, todo en
+        // una transacción con compare-and-swap: el `updateMany` condicional
+        // (where: status = previousStatus) toma el row lock del monitor, así
+        // que si otro worker ya proceso este mismo monitor primero, `count`
+        // da 0 y esta ejecución no toca incidentes ni manda email — evita
+        // duplicar incidentes/emails si la concurrencia del worker sube de 1.
         const now = new Date();
-        await this.prisma.monitor.update({
-            where: { id: monitor.id },
-            data: {
-                status: newStatus,
-                lastCheck: now,
-            },
+        const { transitioned } = await this.prisma.$transaction(async (tx) => {
+            const cas = await tx.monitor.updateMany({
+                where: { id: monitor.id, status: previousStatus },
+                data: { status: newStatus, lastCheck: now },
+            });
+
+            if (cas.count === 0) {
+                return { transitioned: false };
+            }
+
+            if (previousStatus !== 'DOWN' && newStatus === 'DOWN') {
+                // Abre un incidente. El índice parcial único
+                // (incidents_one_ongoing_per_monitor) es la red de seguridad:
+                // si por alguna razón ya hay uno ONGOING, P2002 y no pasa nada.
+                try {
+                    await tx.incident.create({
+                        data: {
+                            monitorId: monitor.id,
+                            userId: monitor.userId,
+                            status: 'ONGOING',
+                            startedAt: now,
+                            firstStatusCode: result.statusCode,
+                            firstError: result.error ?? null,
+                            lastError: result.error ?? null,
+                        },
+                    });
+                } catch (error) {
+                    if (error?.code !== 'P2002') throw error;
+                }
+            } else if (previousStatus === 'DOWN' && newStatus === 'UP') {
+                await tx.incident.updateMany({
+                    where: { monitorId: monitor.id, status: 'ONGOING' },
+                    data: { status: 'RESOLVED', endedAt: now },
+                });
+            } else if (previousStatus === 'DOWN' && newStatus === 'DOWN') {
+                // Sigue caído: no es una transición, pero enriquecemos el
+                // incidente abierto con el último error y el conteo de checks.
+                await tx.incident.updateMany({
+                    where: { monitorId: monitor.id, status: 'ONGOING' },
+                    data: {
+                        lastError: result.error ?? null,
+                        affectedChecks: { increment: 1 },
+                    },
+                });
+            }
+
+            return { transitioned: true };
         });
 
-        // 5. Enviar email si el estado cambió (UP↔DOWN) y no es el primer log (PENDING→UP/DOWN)
+        // 5. Enviar email si el estado cambió (UP↔DOWN), no es el primer log
+        // (PENDING→UP/DOWN), y esta ejecución fue realmente la que causó la
+        // transición (evita doble email bajo concurrencia).
         const shouldSendEmail =
+            transitioned &&
             (previousStatus === 'UP' || previousStatus === 'DOWN') &&
             previousStatus !== newStatus;
 
@@ -166,10 +220,10 @@ export class UptimeProcessor extends WorkerHost {
                     attempts: job.attemptsMade,
                 },
                 {
-                    attempts: 5, 
+                    attempts: 5,
                     backoff: {
                         type: 'exponential',
-                        delay: 30000, 
+                        delay: 30000,
                     },
                 },
             );

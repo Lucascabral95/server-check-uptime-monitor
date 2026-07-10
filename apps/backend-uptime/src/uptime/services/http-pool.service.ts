@@ -1,5 +1,6 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Pool, Client } from 'undici';
+import { assertSafeMonitorUrl } from 'src/common/security/ssrf-guard';
 
 // ============================================================================
 // INTERFACES
@@ -63,7 +64,7 @@ const CONFIG = {
 // ============================================================================
 
 @Injectable()
-export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
+export class HttpPoolService implements OnModuleInit {
     private readonly logger = new Logger(HttpPoolService.name);
 
     // Connection pools por dominio
@@ -87,6 +88,7 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
     };
 
     private responseTimes: number[] = [];
+    private responseTimesDirty = false;
     private statsInterval: NodeJS.Timeout | null = null;
 
     // ========================================================================
@@ -104,7 +106,12 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
         this.logger.log('HttpPoolService initialized with undici pools');
     }
 
-    async onModuleDestroy() {
+    // Se llama explícitamente desde GracefulShutdownService (no es un hook de
+    // ciclo de vida de Nest): si fuera onModuleDestroy, correría en la fase 1
+    // del shutdown, ANTES de que el worker de BullMQ termine de drenar sus
+    // jobs activos (fase 2) — cerrando estos pools mientras un check HTTP
+    // todavía está en vuelo.
+    async closeAll() {
         if (this.statsInterval) {
             clearInterval(this.statsInterval);
         }
@@ -130,6 +137,20 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
     ): Promise<CheckResult> {
         const startTime = Date.now();
         let retries = 0;
+
+        // Revalidar SSRF en cada check, no solo al crear el monitor: el DNS
+        // del hostname puede haber cambiado desde la creación (DNS rebinding)
+        // para apuntar a una IP privada/metadata en el momento del check.
+        try {
+            await assertSafeMonitorUrl(url);
+        } catch (error) {
+            return {
+                success: false,
+                statusCode: 0,
+                durationMs: Date.now() - startTime,
+                error: `URL bloqueada por política de seguridad: ${error.message}`,
+            };
+        }
 
         // Verificar circuit breaker
         if (this.isCircuitBreakerOpen(url)) {
@@ -352,6 +373,12 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
         this.logger.debug(`HTTP request failed: ${error} (${durationMs}ms)`);
     }
 
+    // Ordenar hasta 10.000 elementos en cada check (potencialmente decenas por
+    // segundo entre todos los monitores) es el costo real, no el cálculo del
+    // percentil en sí. Por eso acá solo se empuja el valor y se marca "dirty";
+    // el sort amortizado ocurre en refreshResponseTimeStatsIfDirty(), que
+    // getStats()/logStats() invocan bajo demanda, muchísimo menos seguido que
+    // los checks que lo ensucian.
     private updateResponseTimes(durationMs: number): void {
         this.responseTimes.push(durationMs);
 
@@ -359,13 +386,20 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
             this.responseTimes.shift();
         }
 
-        // Calcular métricas
+        this.responseTimesDirty = true;
+    }
+
+    private refreshResponseTimeStatsIfDirty(): void {
+        if (!this.responseTimesDirty) return;
+
         const sorted = [...this.responseTimes].sort((a, b) => a - b);
         const sum = sorted.reduce((a, b) => a + b, 0);
 
         this.stats.averageResponseTime = sum / sorted.length;
         this.stats.p95ResponseTime = this.percentile(sorted, 95);
         this.stats.p99ResponseTime = this.percentile(sorted, 99);
+
+        this.responseTimesDirty = false;
     }
 
     private percentile(sorted: number[], p: number): number {
@@ -396,6 +430,8 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
     private logStats(): void {
         if (this.stats.totalRequests === 0) return;
 
+        this.refreshResponseTimeStatsIfDirty();
+
         const successRate =
             (this.stats.successfulRequests / this.stats.totalRequests) * 100;
 
@@ -421,6 +457,7 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
     }
 
     getStats(): HttpPoolStats {
+        this.refreshResponseTimeStatsIfDirty();
         return { ...this.stats };
     }
 
@@ -437,6 +474,7 @@ export class HttpPoolService implements OnModuleInit, OnModuleDestroy {
             p99ResponseTime: 0,
         };
         this.responseTimes = [];
+        this.responseTimesDirty = false;
         this.circuitBreakers.clear();
     }
 

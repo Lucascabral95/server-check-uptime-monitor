@@ -144,11 +144,13 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         break;
 
       default:
-        this.logger.warn(`Unhandled Prisma error code: ${code}`);
+        // `meta`/`code` se loguean server-side (línea de abajo) pero NUNCA
+        // se devuelven al cliente: meta puede incluir nombres de columnas,
+        // constraints o fragmentos de la query — detalle interno del schema.
+        this.logger.warn(`Unhandled Prisma error code: ${code}`, { meta });
         errorResponse.statusCode = 500;
         errorResponse.error = 'Internal Server Error';
-        errorResponse.message = `Database error (${code})`;
-        errorResponse.details = { code, meta };
+        errorResponse.message = 'Database error';
     }
   }
 
@@ -156,32 +158,35 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     exception: Prisma.PrismaClientUnknownRequestError,
     errorResponse: ErrorResponse,
   ): void {
+    // exception.message no se expone: en este tipo de error suele incluir el
+    // mensaje crudo del driver (pg), que puede referenciar la connection string.
+    this.logger.warn(`PrismaClientUnknownRequestError: ${exception.message}`);
     errorResponse.statusCode = 500;
     errorResponse.error = 'Internal Server Error';
     errorResponse.message = 'An unknown database error occurred';
-    errorResponse.details = { message: exception.message };
   }
 
   private handleValidationError(
     exception: Prisma.PrismaClientValidationError,
     errorResponse: ErrorResponse,
   ): void {
+    // exception.message no se expone: los errores de validación de Prisma
+    // vuelcan la forma completa de la query (modelo, campos, a veces valores).
+    this.logger.warn(`PrismaClientValidationError: ${exception.message}`);
     errorResponse.statusCode = 400;
     errorResponse.error = 'Validation Error';
     errorResponse.message = 'Invalid data provided';
-    errorResponse.details = { message: exception.message };
   }
 
   private handleInitializationError(
     exception: Prisma.PrismaClientInitializationError,
     errorResponse: ErrorResponse,
   ): void {
+    // exception.message no se expone: puede incluir host/puerto/credenciales
+    // de conexión. errorCode (p.ej. "P1001") sí es seguro, es solo un enum.
     errorResponse.statusCode = 503;
     errorResponse.error = 'Service Unavailable';
     errorResponse.message = 'Database connection failed';
-    errorResponse.details = {
-      errorCode: exception.errorCode,
-      message: exception.message,
-    };
+    errorResponse.details = { errorCode: exception.errorCode };
   }
 }

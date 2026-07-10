@@ -4,7 +4,8 @@
       "mcp__sequential-thinking__sequentialthinking",
       "Bash(npx tsc:*)",
       "Bash(npx vitest run:*)",
-      "Bash(npx vitest list:*)"
+      "Bash(npx vitest list:*)",
+      "WebSearch"
     ]
   }
 }

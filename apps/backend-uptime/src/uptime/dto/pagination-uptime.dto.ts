@@ -1,12 +1,13 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Status } from "@prisma/client";
 import { Type } from "class-transformer";
-import { 
+import {
   IsBoolean,
-  IsEnum, 
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
+  Max,
   Min,
 } from "class-validator";
 
@@ -27,11 +28,12 @@ export class PaginationUptimeDto {
     @Min(1)
     page?: number;
 
-    @ApiPropertyOptional({ example: 10 })
+    @ApiPropertyOptional({ example: 10, maximum: 100 })
     @IsOptional()
     @Type(() => Number)
     @IsInt()
     @Min(1)
+    @Max(100)
     limit?: number;
 
     @ApiPropertyOptional()

@@ -22,6 +22,9 @@ describe('UptimeService', () => {
     updatedAt: new Date(),
   };
 
+  const mockRequestingUser = { dbUserId: 'user-1', role: 'USER' };
+  const mockAdminUser = { dbUserId: 'admin-1', role: 'ADMIN' };
+
   const mockPingLog = {
     id: 'log-1',
     monitorId: 'monitor-1',
@@ -47,11 +50,20 @@ describe('UptimeService', () => {
       findMany: jest.fn(),
       groupBy: jest.fn(),
     },
+    incident: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    $queryRaw: jest.fn(),
   };
 
   const queueMock = {
     add: jest.fn(),
     remove: jest.fn(),
+    getRepeatableJobs: jest.fn(),
+    removeRepeatableByKey: jest.fn(),
+    getJobs: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -151,7 +163,7 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(2);
 
-      const result = await service.findAll();
+      const result = await service.findAll({}, mockRequestingUser);
 
       expect(result.data).toEqual(monitors);
       expect(result.pagination).toEqual({
@@ -163,18 +175,32 @@ describe('UptimeService', () => {
         itemsPerPage: 10,
       });
       expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
-        where: expect.objectContaining({ isActive: true }),
+        where: expect.objectContaining({ isActive: true, userId: mockRequestingUser.dbUserId }),
         skip: 0,
         take: 10,
         orderBy: { createdAt: 'desc' },
       });
     });
 
-    it('should filter by userId', async () => {
+    it('non-admin cannot override userId via query — always scoped to their own dbUserId', async () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
 
-      await service.findAll({ userId: 'user-1', page: 1, limit: 10 });
+      await service.findAll({ userId: 'someone-elses-id', page: 1, limit: 10 }, mockRequestingUser);
+
+      expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ userId: mockRequestingUser.dbUserId, isActive: true }),
+        skip: 0,
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+
+    it('ADMIN can filter by an arbitrary userId', async () => {
+      prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
+      prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
+
+      await service.findAll({ userId: 'user-1', page: 1, limit: 10 }, mockAdminUser);
 
       expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
         where: expect.objectContaining({ userId: 'user-1', isActive: true }),
@@ -188,7 +214,7 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
 
-      await service.findAll({ status: 'UP', page: 1, limit: 10 });
+      await service.findAll({ status: 'UP', page: 1, limit: 10 }, mockRequestingUser);
 
       expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
         where: expect.objectContaining({ status: 'UP', isActive: true }),
@@ -202,7 +228,7 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
 
-      await service.findAll({ search: 'test', page: 1, limit: 10 });
+      await service.findAll({ search: 'test', page: 1, limit: 10 }, mockRequestingUser);
 
       expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
@@ -222,7 +248,7 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
 
-      await service.findAll({ includeInactive: true, page: 1, limit: 10 });
+      await service.findAll({ includeInactive: true, page: 1, limit: 10 }, mockRequestingUser);
 
       const whereClause = (prismaMock.monitor.findMany as jest.Mock).mock.calls[0][0].where;
       expect(whereClause.isActive).toBeUndefined();
@@ -232,7 +258,7 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
 
-      await service.findAll({ sortBy: SortBy.NAME_ASC, page: 1, limit: 10 });
+      await service.findAll({ sortBy: SortBy.NAME_ASC, page: 1, limit: 10 }, mockRequestingUser);
 
       expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
         where: expect.anything(),
@@ -250,7 +276,7 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(25);
 
-      const result = await service.findAll({ page: 2, limit: 10 });
+      const result = await service.findAll({ page: 2, limit: 10 }, mockRequestingUser);
 
       expect(result.pagination).toEqual({
         currentPage: 2,
@@ -271,11 +297,44 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(3);
 
-      const result = await service.findAll({ sortBy: SortBy.STATUS_DOWN, page: 1, limit: 10 });
+      const result = await service.findAll({ sortBy: SortBy.STATUS_DOWN, page: 1, limit: 10 }, mockRequestingUser);
 
       expect(result.data[0].status).toBe('DOWN');
       expect(result.data[1].status).toBe('UP');
       expect(result.data[2].status).toBe('PENDING');
+    });
+
+    it('should sort by STATUS_UP with UP monitors first', async () => {
+      const monitors = [
+        { ...mockMonitor, status: 'DOWN' },
+        { ...mockMonitor, id: 'monitor-2', status: 'UP' },
+        { ...mockMonitor, id: 'monitor-3', status: 'PENDING' },
+      ];
+      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
+      prismaMock.monitor.count = jest.fn().mockResolvedValue(3);
+
+      const result = await service.findAll({ sortBy: SortBy.STATUS_UP, page: 1, limit: 10 }, mockRequestingUser);
+
+      expect(result.data[0].status).toBe('UP');
+      expect(result.data[1].status).toBe('DOWN');
+      expect(result.data[2].status).toBe('PENDING');
+    });
+
+    it('ADMIN can filter by email', async () => {
+      prismaMock.monitor.findMany = jest.fn().mockResolvedValue([mockMonitor]);
+      prismaMock.monitor.count = jest.fn().mockResolvedValue(1);
+
+      await service.findAll({ email: 'user@example.com', page: 1, limit: 10 }, mockAdminUser);
+
+      expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          user: { email: 'user@example.com' },
+          isActive: true,
+        }),
+        skip: 0,
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      });
     });
   });
 
@@ -379,6 +438,37 @@ describe('UptimeService', () => {
       expect(queueMock.remove).toHaveBeenCalledWith('monitor:monitor-1');
       expect(queueMock.add).not.toHaveBeenCalled();
     });
+
+    it('resolves any ONGOING incident when the monitor is deactivated (processor will never run DOWN->UP again)', async () => {
+      prismaMock.monitor.findUnique = jest
+        .fn()
+        .mockResolvedValueOnce({ userId: 'user-1' })
+        .mockResolvedValueOnce(mockMonitor);
+      prismaMock.monitor.update = jest.fn().mockResolvedValue({
+        ...mockMonitor,
+        isActive: false,
+      });
+      queueMock.remove = jest.fn().mockResolvedValue(true);
+
+      await service.update('monitor-1', { isActive: false }, 'user-1');
+
+      expect(prismaMock.incident.updateMany).toHaveBeenCalledWith({
+        where: { monitorId: 'monitor-1', status: 'ONGOING' },
+        data: { status: 'RESOLVED', endedAt: expect.any(Date) },
+      });
+    });
+
+    it('does not touch incidents when isActive is not part of the update', async () => {
+      prismaMock.monitor.findUnique = jest
+        .fn()
+        .mockResolvedValueOnce({ userId: 'user-1' })
+        .mockResolvedValueOnce(mockMonitor);
+      prismaMock.monitor.update = jest.fn().mockResolvedValue(mockMonitor);
+
+      await service.update('monitor-1', { name: 'New name' }, 'user-1');
+
+      expect(prismaMock.incident.updateMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('remove', () => {
@@ -416,6 +506,65 @@ describe('UptimeService', () => {
       const removeCall = (prismaMock.monitor.delete as jest.Mock).mock.invocationCallOrder[0];
       const queueCall = (queueMock.remove as jest.Mock).mock.invocationCallOrder[0];
       expect(queueCall).toBeLessThan(removeCall);
+    });
+  });
+
+  describe('clearAllQueueJobs', () => {
+    it('should clear repeatable and waiting jobs and return count', async () => {
+      const repeatJobs = [
+        { key: 'repeat-1' },
+        { key: 'repeat-2' },
+      ];
+      const waitingJobs = [
+        { id: 'job-1', remove: jest.fn().mockResolvedValue(true) },
+      ];
+      queueMock.getRepeatableJobs = jest.fn().mockResolvedValue(repeatJobs);
+      queueMock.removeRepeatableByKey = jest.fn().mockResolvedValue(true);
+      queueMock.getJobs = jest.fn().mockResolvedValue(waitingJobs);
+
+      const result = await service.clearAllQueueJobs();
+
+      expect(queueMock.getRepeatableJobs).toHaveBeenCalled();
+      expect(queueMock.removeRepeatableByKey).toHaveBeenCalledWith('repeat-1');
+      expect(queueMock.removeRepeatableByKey).toHaveBeenCalledWith('repeat-2');
+      expect(queueMock.getJobs).toHaveBeenCalledWith(['waiting', 'delayed'], 0, 1000);
+      expect(waitingJobs[0].remove).toHaveBeenCalled();
+      expect(result).toEqual({
+        message: 'Queue cleared successfully',
+        removedCount: 3,
+      });
+    });
+  });
+
+  describe('syncQueueJobs', () => {
+    it('should remove orphaned jobs and create missing jobs', async () => {
+      const activeMonitors = [
+        { id: 'a1b2c3', frequency: 60, url: 'https://a.com' },
+        { id: 'b2c3d4', frequency: 120, url: 'https://b.com' },
+      ];
+      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(activeMonitors);
+      queueMock.getRepeatableJobs = jest.fn().mockResolvedValue([
+        { name: 'monitor:a1b2c3' },
+        { name: 'monitor:deadbeef' },
+      ]);
+      queueMock.remove = jest.fn().mockResolvedValue(true);
+      queueMock.add = jest.fn().mockResolvedValue({ id: 'job-created' });
+
+      const result = await service.syncQueueJobs();
+
+      expect(queueMock.remove).toHaveBeenCalledWith('monitor:deadbeef');
+      expect(queueMock.add).toHaveBeenCalledWith(
+        'check-monitor',
+        { monitorId: 'b2c3d4' },
+        expect.objectContaining({
+          jobId: 'monitor:b2c3d4',
+          repeat: { every: 120000 },
+        }),
+      );
+      expect(result).toEqual({
+        orphanedRemoved: 1,
+        jobsCreated: 1,
+      });
     });
   });
 
@@ -508,7 +657,7 @@ describe('UptimeService', () => {
         { success: true, _count: 95 },
         { success: false, _count: 5 },
       ]);
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue([]);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValue([{ downtime_ms: BigInt(0) }]);
 
       const result = await service.findStatsLogsByUptimeId('monitor-1', 'user-1');
 
@@ -533,12 +682,11 @@ describe('UptimeService', () => {
   });
 
   describe('getIncidents', () => {
-    it('should return empty incidents when no logs exist', async () => {
-      prismaMock.monitor.findUnique = jest
-        .fn()
-        .mockResolvedValueOnce({ userId: 'user-1' })
-        .mockResolvedValueOnce({ status: 'UP' });
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue([]);
+    it('should return empty incidents when there are none', async () => {
+      prismaMock.monitor.findUnique = jest.fn().mockResolvedValueOnce({ userId: 'user-1' });
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
+      prismaMock.incident.count = jest.fn().mockResolvedValue(0);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValue([{ downtime_ms: BigInt(0) }]);
 
       const result = await service.getIncidents('monitor-1', 'user-1');
 
@@ -549,21 +697,25 @@ describe('UptimeService', () => {
         totalDowntime: '0s',
         totalDowntimeMs: 0,
         ongoingIncidents: 0,
+        pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 20 },
       });
     });
 
-    it('should calculate incidents correctly', async () => {
-      const logs = [
-        { ...mockPingLog, success: true, timestamp: new Date('2024-01-01T10:00:00Z') },
-        { ...mockPingLog, success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'Connection timeout' },
-        { ...mockPingLog, success: false, timestamp: new Date('2024-01-01T11:01:00Z'), error: 'Connection timeout' },
-        { ...mockPingLog, success: true, timestamp: new Date('2024-01-01T11:05:00Z') },
-      ];
-      prismaMock.monitor.findUnique = jest
-        .fn()
-        .mockResolvedValueOnce({ userId: 'user-1' })
-        .mockResolvedValueOnce({ status: 'UP' });
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue(logs);
+    it('should map Incident rows into the response DTO', async () => {
+      const incidentRow = {
+        id: 'incident-1',
+        monitorId: 'monitor-1',
+        status: 'RESOLVED',
+        startedAt: new Date('2024-01-01T11:00:00Z'),
+        endedAt: new Date('2024-01-01T11:05:00Z'),
+        firstError: 'Connection timeout',
+        lastError: 'Connection timeout',
+        affectedChecks: 2,
+      };
+      prismaMock.monitor.findUnique = jest.fn().mockResolvedValueOnce({ userId: 'user-1' });
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([incidentRow]);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValue([{ downtime_ms: BigInt(300000) }]);
 
       const result = await service.getIncidents('monitor-1', 'user-1');
 
@@ -572,48 +724,60 @@ describe('UptimeService', () => {
       expect(result.incidents[0].affectedChecks).toBe(2);
       expect(result.incidents[0].firstError).toBe('Connection timeout');
       expect(result.ongoingIncidents).toBe(0);
+      expect(result.totalDowntimeMs).toBe(300000);
     });
 
-    it('should mark incident as ONGOING when monitor is DOWN', async () => {
-      const logs = [
-        { ...mockPingLog, success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'Server error' },
-      ];
-      prismaMock.monitor.findUnique = jest
-        .fn()
-        .mockResolvedValueOnce({ userId: 'user-1' })
-        .mockResolvedValueOnce({ status: 'DOWN' });
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue(logs);
+    it('should reflect ONGOING status directly from the Incident row (endedAt null)', async () => {
+      const incidentRow = {
+        id: 'incident-1',
+        monitorId: 'monitor-1',
+        status: 'ONGOING',
+        startedAt: new Date('2024-01-01T11:00:00Z'),
+        endedAt: null,
+        firstError: 'Server error',
+        lastError: 'Server error',
+        affectedChecks: 1,
+      };
+      prismaMock.monitor.findUnique = jest.fn().mockResolvedValueOnce({ userId: 'user-1' });
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([incidentRow]);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValue([{ downtime_ms: BigInt(0) }]);
 
       const result = await service.getIncidents('monitor-1', 'user-1');
 
       expect(result.incidents[0].status).toBe('ONGOING');
+      expect(result.incidents[0].endTime).toBeNull();
       expect(result.ongoingIncidents).toBe(1);
     });
 
-    it('should sort incidents by start time descending', async () => {
-      const logs = [
-        { ...mockPingLog, success: false, timestamp: new Date('2024-01-01T10:00:00Z'), error: 'Error 1' },
-        { ...mockPingLog, success: true, timestamp: new Date('2024-01-01T10:05:00Z') },
-        { ...mockPingLog, success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'Error 2' },
-        { ...mockPingLog, success: true, timestamp: new Date('2024-01-01T11:05:00Z') },
-      ];
-      prismaMock.monitor.findUnique = jest
-        .fn()
-        .mockResolvedValueOnce({ userId: 'user-1' })
-        .mockResolvedValueOnce({ status: 'UP' });
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue(logs);
+    it('should query incidents ordered by startedAt desc and paginate', async () => {
+      prismaMock.monitor.findUnique = jest.fn().mockResolvedValueOnce({ userId: 'user-1' });
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
+      prismaMock.incident.count = jest.fn().mockResolvedValue(45);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValue([{ downtime_ms: BigInt(0) }]);
 
-      const result = await service.getIncidents('monitor-1', 'user-1');
+      const result = await service.getIncidents('monitor-1', 'user-1', { page: 2, limit: 10 } as any);
 
-      expect(result.incidents[0].startTime.getTime()).toBeGreaterThan(
-        result.incidents[1].startTime.getTime(),
-      );
+      expect(prismaMock.incident.findMany).toHaveBeenCalledWith({
+        where: { monitorId: 'monitor-1' },
+        orderBy: { startedAt: 'desc' },
+        skip: 10,
+        take: 10,
+      });
+      expect(result.pagination).toEqual({
+        currentPage: 2,
+        totalPages: 5,
+        totalItems: 45,
+        itemsPerPage: 10,
+      });
     });
   });
 
   describe('getIncidentsByUserId', () => {
-    it('should return empty result when user has no monitors', async () => {
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue([]);
+    it('should return empty result when user has no monitors/incidents', async () => {
+      prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce([]); // getMonitorIncidentSummaries
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
 
       const result = await service.getIncidentsByUserId('user-1');
 
@@ -627,21 +791,24 @@ describe('UptimeService', () => {
         ongoingIncidents: 0,
         totalMonitors: 0,
         monitorsDown: 0,
+        pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 20 },
       });
     });
 
-    it('should return incidents grouped by monitor', async () => {
-      const monitors = [
-        { id: 'm1', name: 'Monitor 1', url: 'https://m1.com', status: 'UP' },
-        { id: 'm2', name: 'Monitor 2', url: 'https://m2.com', status: 'DOWN' },
+    it('should return incidents grouped by monitor (from the GROUP BY summary query)', async () => {
+      const byMonitorRows = [
+        {
+          monitorId: 'm1', monitorName: 'Monitor 1', monitorUrl: 'https://m1.com', monitorStatus: 'UP',
+          incidentCount: 1, hasOngoingIncident: false, totalDowntimeMs: 60000,
+        },
+        {
+          monitorId: 'm2', monitorName: 'Monitor 2', monitorUrl: 'https://m2.com', monitorStatus: 'DOWN',
+          incidentCount: 1, hasOngoingIncident: true, totalDowntimeMs: 30000,
+        },
       ];
-      const logs = [
-        { ...mockPingLog, monitorId: 'm1', success: false, timestamp: new Date('2024-01-01T10:00:00Z'), error: 'Error' },
-        { ...mockPingLog, monitorId: 'm1', success: true, timestamp: new Date('2024-01-01T10:05:00Z') },
-        { ...mockPingLog, monitorId: 'm2', success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'Down' },
-      ];
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue(logs);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce(byMonitorRows);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
 
       const result = await service.getIncidentsByUserId('user-1');
 
@@ -651,91 +818,108 @@ describe('UptimeService', () => {
       expect(result.byMonitor[0]).toHaveProperty('monitorId');
       expect(result.byMonitor[0]).toHaveProperty('incidentCount');
       expect(result.byMonitor[0]).toHaveProperty('hasOngoingIncident');
+      expect(result.ongoingIncidents).toBe(1);
+      expect(result.totalDowntimeMs).toBe(90000);
     });
 
-    it('should filter monitors by search term', async () => {
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue([
-        { id: 'm1', name: 'Production', url: 'https://prod.com', status: 'UP' },
-        { id: 'm2', name: 'Staging', url: 'https://staging.com', status: 'UP' },
-      ]);
+    it('should filter by search term on both the summary and the count query', async () => {
+      prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce([]);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
 
-      await service.getIncidentsByUserId('user-1', { search: 'prod' });
+      await service.getIncidentsByUserId('user-1', { search: 'prod' } as any);
 
-      expect(prismaMock.monitor.findMany).toHaveBeenCalledWith({
-        where: expect.objectContaining({
-          OR: [
-            { name: { contains: 'prod', mode: 'insensitive' } },
-            { url: { contains: 'prod', mode: 'insensitive' } },
-          ],
-        }),
-        select: expect.anything(),
+      expect(prismaMock.incident.count).toHaveBeenNthCalledWith(1, {
+        where: {
+          userId: 'user-1',
+          monitor: {
+            OR: [
+              { name: { contains: 'prod', mode: 'insensitive' } },
+              { url: { contains: 'prod', mode: 'insensitive' } },
+            ],
+          },
+        },
       });
     });
 
-    it('should sort incidents by RECENT by default', async () => {
-      const monitors = [{ id: 'm1', name: 'M1', url: 'https://m1.com', status: 'UP' }];
-      const logs = [
-        { ...mockPingLog, monitorId: 'm1', success: false, timestamp: new Date('2024-01-01T10:00:00Z'), error: 'E1' },
-        { ...mockPingLog, monitorId: 'm1', success: true, timestamp: new Date('2024-01-01T10:05:00Z') },
-        { ...mockPingLog, monitorId: 'm1', success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'E2' },
-        { ...mockPingLog, monitorId: 'm1', success: true, timestamp: new Date('2024-01-01T11:05:00Z') },
-      ];
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue(logs);
+    it('should sort incidents by RECENT by default via Prisma orderBy', async () => {
+      prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce([]);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
 
-      const result = await service.getIncidentsByUserId('user-1');
+      await service.getIncidentsByUserId('user-1');
 
-      expect(result.incidents[0].startTime.getTime()).toBeGreaterThan(
-        result.incidents[1].startTime.getTime(),
+      expect(prismaMock.incident.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ orderBy: { startedAt: 'desc' } }),
       );
     });
 
-    it('should sort incidents by DURATION_LONGEST', async () => {
-      const monitors = [{ id: 'm1', name: 'M1', url: 'https://m1.com', status: 'UP' }];
-      const logs = [
-        { ...mockPingLog, monitorId: 'm1', success: false, timestamp: new Date('2024-01-01T10:00:00Z'), error: 'E1' },
-        { ...mockPingLog, monitorId: 'm1', success: true, timestamp: new Date('2024-01-01T10:02:00Z') },
-        { ...mockPingLog, monitorId: 'm1', success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'E2' },
-        { ...mockPingLog, monitorId: 'm1', success: true, timestamp: new Date('2024-01-01T11:10:00Z') },
+    it('should sort incidents by DURATION_LONGEST via a raw query with LIMIT/OFFSET (not a full findMany)', async () => {
+      const durationRows = [
+        {
+          id: 'i1', monitorId: 'm1', status: 'RESOLVED',
+          startedAt: new Date('2024-01-01T10:00:00Z'), endedAt: new Date('2024-01-01T10:02:00Z'),
+          affectedChecks: 1, firstError: null, lastError: null,
+          monitorName: 'M1', monitorUrl: 'https://m1.com', monitorStatus: 'UP',
+          durationMs: BigInt(120000),
+        },
+        {
+          id: 'i2', monitorId: 'm1', status: 'RESOLVED',
+          startedAt: new Date('2024-01-01T11:00:00Z'), endedAt: new Date('2024-01-01T11:10:00Z'),
+          affectedChecks: 1, firstError: null, lastError: null,
+          monitorName: 'M1', monitorUrl: 'https://m1.com', monitorStatus: 'UP',
+          durationMs: BigInt(600000),
+        },
       ];
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
-      prismaMock.pingLog.findMany = jest.fn().mockResolvedValue(logs);
+      prismaMock.$queryRaw = jest
+        .fn()
+        .mockResolvedValueOnce([]) // getMonitorIncidentSummaries
+        .mockResolvedValueOnce(durationRows); // findIncidentsPageByUserIdSortedByDuration
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(0);
+      prismaMock.incident.findMany = jest.fn();
 
       const result = await service.getIncidentsByUserId('user-1', {
         sortBy: IncidentSortBy.DURATION_LONGEST,
-      });
+      } as any);
 
-      expect(result.incidents[0].durationMs).toBeGreaterThanOrEqual(
-        result.incidents[1].durationMs,
-      );
+      expect(result.incidents).toHaveLength(2);
+      expect(result.incidents[0].durationMs).toBe(120000);
+      expect(result.incidents[1].durationMs).toBe(600000);
+      expect(prismaMock.incident.findMany).not.toHaveBeenCalled();
     });
 
     it('should sort byMonitor by incident count descending', async () => {
-      const monitors = [
-        { id: 'm1', name: 'M1', url: 'https://m1.com', status: 'UP' },
-        { id: 'm2', name: 'M2', url: 'https://m2.com', status: 'UP' },
+      const byMonitorRows = [
+        { monitorId: 'm1', monitorName: 'M1', monitorUrl: 'https://m1.com', monitorStatus: 'UP', incidentCount: 1, hasOngoingIncident: false, totalDowntimeMs: 0 },
+        { monitorId: 'm2', monitorName: 'M2', monitorUrl: 'https://m2.com', monitorStatus: 'UP', incidentCount: 2, hasOngoingIncident: false, totalDowntimeMs: 0 },
       ];
-      const logsM1 = [
-        { ...mockPingLog, monitorId: 'm1', success: false, timestamp: new Date('2024-01-01T10:00:00Z'), error: 'E' },
-        { ...mockPingLog, monitorId: 'm1', success: true, timestamp: new Date('2024-01-01T10:05:00Z') },
-      ];
-      const logsM2 = [
-        { ...mockPingLog, monitorId: 'm2', success: false, timestamp: new Date('2024-01-01T10:00:00Z'), error: 'E' },
-        { ...mockPingLog, monitorId: 'm2', success: true, timestamp: new Date('2024-01-01T10:01:00Z') },
-        { ...mockPingLog, monitorId: 'm2', success: false, timestamp: new Date('2024-01-01T11:00:00Z'), error: 'E' },
-        { ...mockPingLog, monitorId: 'm2', success: true, timestamp: new Date('2024-01-01T11:05:00Z') },
-      ];
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
-      prismaMock.pingLog.findMany = jest
-        .fn()
-        .mockResolvedValueOnce(logsM1)
-        .mockResolvedValueOnce(logsM2);
+      prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce(byMonitorRows);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(3).mockResolvedValueOnce(0);
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
 
       const result = await service.getIncidentsByUserId('user-1');
 
       expect(result.byMonitor[0].incidentCount).toBeGreaterThanOrEqual(
         result.byMonitor[1].incidentCount,
       );
+    });
+
+    it('paginates the incidents list', async () => {
+      prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce([]);
+      prismaMock.incident.count = jest.fn().mockResolvedValueOnce(45).mockResolvedValueOnce(0);
+      prismaMock.incident.findMany = jest.fn().mockResolvedValue([]);
+
+      const result = await service.getIncidentsByUserId('user-1', { page: 2, limit: 10 } as any);
+
+      expect(prismaMock.incident.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 10, take: 10 }),
+      );
+      expect(result.pagination).toEqual({
+        currentPage: 2,
+        totalPages: 5,
+        totalItems: 45,
+        itemsPerPage: 10,
+      });
     });
   });
 

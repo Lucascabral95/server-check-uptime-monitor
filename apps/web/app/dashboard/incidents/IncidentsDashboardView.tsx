@@ -50,7 +50,7 @@ const IncidentsDashboardView = () => {
           onSearchChange={handleSearchChange}
           onSortChange={handleSortChange}
           onClearSearch={onClearSearch}
-          incidentCount={data?.incidents?.length}
+          incidentCount={data?.totalIncidents}
         />
       </div>
 

@@ -45,6 +45,15 @@ services:
     restart: unless-stopped
     env_file:
       - ./apps/backend-uptime/.env
+    environment:
+      # .env está pensado para correr el backend en el host contra Postgres/
+      # Redis dockerizados vía sus puertos publicados (localhost:5432/6379).
+      # Acá el backend corre DENTRO de la red de compose, así que necesita
+      # los hostnames de servicio en vez de localhost. `environment:` pisa a
+      # `env_file:`, así que esto no toca el .env compartido con los otros
+      # servicios ni con el uso en host.
+      DATABASE_URL: postgresql://servercheck:servercheck123@postgres:5432/servercheck_dev?schema=public
+      REDIS_HOST: redis
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +61,18 @@ services:
         condition: service_healthy
     ports:
       - '4000:4000'
+    healthcheck:
+      # Usa `node` en vez de curl/wget: la imagen node:20-alpine no trae
+      # ninguno de los dos instalado por default.
+      test:
+        [
+          'CMD-SHELL',
+          "node -e \"require('http').get('http://localhost:4000/health/liveness', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - servercheck-network
 

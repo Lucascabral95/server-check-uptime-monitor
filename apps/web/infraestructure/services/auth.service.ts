@@ -18,8 +18,6 @@ interface SignUpResult {
 }
 
 class AuthService {
-  private static readonly COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
-
   async register(credentials: RegisterCredentials): Promise<{ isComplete: boolean; userId: string }> {
     const { email, password } = credentials;
 
@@ -81,12 +79,12 @@ class AuthService {
       throw new Error('No se pudieron obtener los tokens');
     }
 
-    this.setAuthCookies(accessToken, idToken);
+    await this.establishSession(accessToken, idToken);
   }
 
   async logout(): Promise<void> {
     await signOut();
-    this.clearAuthCookies();
+    await this.destroySession();
   }
 
   async getCurrentUser(): Promise<LoginResponseUser> {
@@ -94,20 +92,28 @@ class AuthService {
     return user as LoginResponseUser;
   }
 
-  private setAuthCookies(accessToken: string, idToken: string): void {
-    if (typeof document === 'undefined') return;
+  // El JS del browser no puede setear cookies httpOnly, así que los tokens
+  // recién obtenidos de Amplify se mandan a un Route Handler propio que los
+  // guarda como cookie httpOnly — nunca vuelven a tocar document.cookie ni
+  // localStorage.
+  private async establishSession(accessToken: string, idToken: string): Promise<void> {
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ accessToken, idToken }),
+    });
 
-    const cookieOptions = 'path=/; max-age=' + AuthService.COOKIE_MAX_AGE;
-
-    document.cookie = `accessToken=${accessToken}; ${cookieOptions}`;
-    document.cookie = `idToken=${idToken}; ${cookieOptions}`;
+    if (!response.ok) {
+      throw new Error('No se pudo establecer la sesión');
+    }
   }
 
-  private clearAuthCookies(): void {
-    if (typeof document === 'undefined') return;
-
-    document.cookie = 'accessToken=; path=/; max-age=0';
-    document.cookie = 'idToken=; path=/; max-age=0';
+  private async destroySession(): Promise<void> {
+    await fetch('/api/auth/session', {
+      method: 'DELETE',
+      credentials: 'include',
+    });
   }
 
   async checkAuthStatus(): Promise<LoginResponseUser | null> {

@@ -2,12 +2,19 @@ export interface GetIncidentsByUserIdInterface {
     userId: string;
     incidents: IncidentsInterface[];
     byMonitor: MonitorIncidentSummaryInterface[];
-    totalIncidents: string;
+    totalIncidents: number;
     totalDowntime: string;
     totalDowntimeMs: number;
     ongoingIncidents: number;
     totalMonitors: number;
     monitorsDown: number;
+    // incidents solo trae la página actual; byMonitor no está paginado.
+    pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalItems: number;
+        itemsPerPage: number;
+    };
 }
 
 interface MonitorIncidentSummaryInterface {
@@ -28,7 +35,9 @@ export interface IncidentsInterface {
     monitorUrl: string;
     monitorStatus: Status;
     startTime: Date;
-    endTime: Date;
+    // null cuando el incidente sigue ONGOING (ver apps/backend-uptime
+    // src/uptime/dto/get-incidents-by-user-id.dto.ts).
+    endTime: Date | null;
     duration: string;
     durationMs: number;
     status: StatusIncident;
