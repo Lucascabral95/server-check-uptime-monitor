@@ -49,7 +49,9 @@ const IncidentsTable = ({ data }: TableIncidentsProps) => {
 
                 <td className="comments">{row.affectedChecks}</td>
                 <td className="date">{new Date(row.startTime).toISOString().split("T")[0]}</td>
-                <td className="date">{new Date(row.endTime).toISOString().split("T")[0]}</td>
+                <td className="date">
+                  {row.endTime ? new Date(row.endTime).toISOString().split("T")[0] : "En curso"}
+                </td>
                 <td className="duration">{row.duration}</td>
 
                 <td className="visibility">

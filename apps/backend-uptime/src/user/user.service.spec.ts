@@ -17,6 +17,7 @@ describe('UserService', () => {
       findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
   };
 
@@ -41,22 +42,38 @@ describe('UserService', () => {
   });
 
   describe('findAll', () => {
-    it('should return an array of users', async () => {
+    it('should return a paginated page of users', async () => {
       const expectedUsers = [
         { id: '1', email: 'user1@example.com', role: Role.USER },
         { id: '2', email: 'user2@example.com', role: Role.ADMIN },
       ];
 
       mockPrismaService.user.findMany.mockResolvedValue(expectedUsers);
+      mockPrismaService.user.count.mockResolvedValue(2);
 
       const result = await service.findAll();
 
-      expect(result).toEqual(expectedUsers);
-      expect(mockPrismaService.user.findMany).toHaveBeenCalled();
+      expect(result).toEqual({
+        data: expectedUsers,
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          nextPage: null,
+          prevPage: null,
+          totalItems: 2,
+          itemsPerPage: 10,
+        },
+      });
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        skip: 0,
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      });
     });
 
     it('should throw NotFoundException when no users found', async () => {
       mockPrismaService.user.findMany.mockResolvedValue([]);
+      mockPrismaService.user.count.mockResolvedValue(0);
 
       await expect(service.findAll()).rejects.toThrow(NotFoundException);
       await expect(service.findAll()).rejects.toThrow('No users found');
@@ -90,20 +107,17 @@ describe('UserService', () => {
       await expect(service.findOne(userId, currentUserId)).rejects.toThrow('User not found');
     });
 
-    it('should allow access when user is the owner', async () => {
+    it('should allow access when user is the owner without re-querying isAdmin', async () => {
       const userId = 'user-id-123';
       const currentUserId = 'user-id-123';
       const expectedUser = { id: userId, email: 'user@example.com', role: Role.USER };
 
       mockPrismaService.user.findUnique.mockResolvedValue(expectedUser);
-      mockPrismaService.user.findUniqueOrThrow.mockResolvedValue(expectedUser);
 
       const result = await service.findOne(userId, currentUserId);
 
       expect(result).toEqual(expectedUser);
-      expect(mockPrismaService.user.findUniqueOrThrow).toHaveBeenCalledWith({
-        where: { id: currentUserId },
-      });
+      expect(mockPrismaService.user.findUniqueOrThrow).not.toHaveBeenCalled();
     });
 
     it('should allow access when current user is ADMIN', async () => {

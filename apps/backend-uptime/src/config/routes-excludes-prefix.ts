@@ -1,3 +1,3 @@
-const routesExcludesPrefix = ["", "/health"]
+const routesExcludesPrefix = ["", "/health", "/health/liveness", "/health/readiness"]
 
 export default routesExcludesPrefix;

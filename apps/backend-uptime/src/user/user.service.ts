@@ -7,7 +7,7 @@ import {
     } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import { CreateUserDto, UpdateUserDto, PaginationUserDto, PaginatedUsersResponseDto } from './dto';
 import { Role } from '@prisma/client';
 
 @Injectable()
@@ -15,15 +15,33 @@ export class UserService {
 
   constructor( private prisma: PrismaService ) {}
 
-  async findAll() {
+  async findAll(paginationDto: PaginationUserDto = {}): Promise<PaginatedUsersResponseDto<any>> {
   try {
-    const allUsers = await this.prisma.user.findMany();
-    
-    if (!allUsers || allUsers.length === 0) {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const [data, totalItems] = await Promise.all([
+      this.prisma.user.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      this.prisma.user.count(),
+    ]);
+
+    if (totalItems === 0) {
       throw new NotFoundException('No users found');
     }
-    
-    return allUsers;
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
+        totalItems,
+        itemsPerPage: limit,
+      },
+    };
   } catch (error) {
     if (error instanceof NotFoundException) {
       throw error;
@@ -47,10 +65,14 @@ async findOne(id: string, currentUserId?: string) {
     }
 
     const isOwnProfile = findUserById.id === currentUserId;
-    const isUserAdmin = await this.isAdmin(currentUserId);
 
-    if (!isOwnProfile && !isUserAdmin) {
-      throw new ForbiddenException('You can only access your own user information');
+    // isAdmin() re-queries the requester's own row, so it's only worth
+    // paying for when the requester isn't already looking at their own data.
+    if (!isOwnProfile) {
+      const isUserAdmin = await this.isAdmin(currentUserId);
+      if (!isUserAdmin) {
+        throw new ForbiddenException('You can only access your own user information');
+      }
     }
 
     return findUserById;
@@ -64,10 +86,14 @@ async findOne(id: string, currentUserId?: string) {
 }
 
   async update(id: string, updateUserDto: UpdateUserDto, currentUserId: string) {
-    const emailUpdated = {...updateUserDto, email: updateUserDto.email};
-    await this.findOne(id, currentUserId);
-    await this.findUserByEmail(emailUpdated.email);
-    
+    const currentUser = await this.findOne(id, currentUserId);
+
+    // Only worth a uniqueness check when the email is actually changing —
+    // otherwise a no-op email field would collide with the user's own row.
+    if (updateUserDto.email && updateUserDto.email !== currentUser.email) {
+      await this.findUserByEmail(updateUserDto.email);
+    }
+
     try {
       const userUpdated = await this.prisma.user.update({
         where: { id },

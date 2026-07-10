@@ -3,42 +3,37 @@ import { persist } from 'zustand/middleware';
 
 import { LoginException, LoginResponseUser } from '@/infraestructure/interfaces';
 
-export interface AuthTokens {
-  accessToken: string;
-  idToken: string;
-}
-
 interface AuthState {
   // Estado
   isAuthenticated: boolean;
   user: LoginResponseUser | null;
-  tokens: AuthTokens | null;
   error: LoginException | null;
   isLoading: boolean;
 
   // Actions
-  setUser: (user: LoginResponseUser, tokens: AuthTokens) => void;
+  setUser: (user: LoginResponseUser) => void;
   clearAuth: () => void;
   setError: (error: LoginException | null) => void;
   setLoading: (isLoading: boolean) => void;
   logout: () => void;
 }
 
+// El store guarda identidad (quién está logueado), no credenciales: los JWT
+// viven exclusivamente en cookies httpOnly (ver app/api/auth/session), fuera
+// del alcance de JS. Nunca vuelvan a agregar `tokens` acá.
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       // Estado inicial
       isAuthenticated: false,
       user: null,
-      tokens: null,
       error: null,
       isLoading: false,
 
       // Actions
-      setUser: (user, tokens) =>
+      setUser: (user) =>
         set({
           user,
-          tokens,
           isAuthenticated: true,
           error: null,
         }),
@@ -46,7 +41,6 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () =>
         set({
           user: null,
-          tokens: null,
           isAuthenticated: false,
           error: null,
         }),
@@ -58,7 +52,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () =>
         set({
           user: null,
-          tokens: null,
           isAuthenticated: false,
           error: null,
           isLoading: false,
@@ -69,7 +62,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         user: state.user,
-        tokens: state.tokens,
       }),
     }
   )

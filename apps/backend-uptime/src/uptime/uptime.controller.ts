@@ -63,11 +63,12 @@ export class UptimeController {
   
   @Throttle({ medium: {} })
   @Get()
-  @ApiOperation({ summary: 'Listar monitores con paginación' })
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Listar monitores con paginación (solo los del usuario autenticado, salvo ADMIN)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'userId', required: false, type: String })
-  @ApiQuery({ name: 'email', required: false, type: String })
+  @ApiQuery({ name: 'userId', required: false, type: String, description: 'Solo ADMIN puede filtrar por otro usuario' })
+  @ApiQuery({ name: 'email', required: false, type: String, description: 'Solo ADMIN puede filtrar por email' })
   @ApiQuery({ name: 'status', required: false, enum: Status })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por nombre o URL' })
   @ApiQuery({ name: 'includeInactive', required: false, type: Boolean, description: 'Incluir monitores inactivos (isActive: false). Por defecto false.' })
@@ -78,13 +79,18 @@ export class UptimeController {
     description: 'Ordenar resultados: recent (más recientes), oldest (más antiguos), name_asc (A-Z), name_desc (Z-A), status_down (fallidos primero), status_up (up primero)',
     example: SortBy.RECENT
   })
-  findAll(@Query() paginationDto: PaginationUptimeDto) {
-    return this.uptimeService.findAll(paginationDto);
+  findAll(@Query() paginationDto: PaginationUptimeDto, @Request() req: RequestUserDto) {
+    return this.uptimeService.findAll(paginationDto, {
+      dbUserId: req.user.dbUserId,
+      role: req.user.role,
+    });
   }
 
   @SkipThrottle()
   @Get('stats')
-  @ApiOperation({ summary: 'Obtener estadísticas internas del sistema' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener estadísticas internas del sistema (solo ADMIN)' })
     getStats() {
         return {
             httpPool: this.httpPoolService.getStats(),
@@ -103,17 +109,21 @@ export class UptimeController {
     return this.uptimeService.getStatsByUserId(req.user.dbUserId);
   }
 
-  @SkipThrottle()
+  @Throttle({ medium: {} })
   @Get('flush')
-  @ApiOperation({ summary: 'Forzar flush del buffer de logs' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Forzar flush del buffer de logs (solo ADMIN)' })
   async forceFlush() {
       await this.pingLogBufferService.forceFlush();
       return { message: 'Buffer flushed successfully' };
     }
 
-  @SkipThrottle()
+  @Throttle({ short: {} })
   @Post('queue/clear')
-  @ApiOperation({ summary: 'Limpiar todos los jobs de la cola (útil después de db:reset o db:seed)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Limpiar todos los jobs de la cola (útil después de db:reset o db:seed) (solo ADMIN)' })
   @ApiResponse({ status: 200, schema: {
     type: 'object',
     properties: {
@@ -125,9 +135,11 @@ export class UptimeController {
     return this.uptimeService.clearAllQueueJobs();
   }
 
-  @SkipThrottle()
+  @Throttle({ short: {} })
   @Post('queue/sync')
-  @ApiOperation({ summary: 'Sincronizar jobs de la cola con monitores en BD - elimina huérfanos y crea faltantes' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Sincronizar jobs de la cola con monitores en BD - elimina huérfanos y crea faltantes (solo ADMIN)' })
   @ApiResponse({ status: 200, schema: {
     type: 'object',
     properties: {
@@ -179,11 +191,17 @@ export class UptimeController {
   @Throttle({ medium: {} })
   @Get('incidents/:id')
   @UseGuards(JwtAuthGuard, MonitorOwnerGuard)
-  @ApiOperation({ summary: 'Obtener incidentes de un monitor (períodos de caída agrupados)' })
+  @ApiOperation({ summary: 'Obtener incidentes de un monitor (períodos de caída agrupados), paginado' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, type: GetIncidentsDto })
-  getIncidents(@Param('id') id: string, @Request() req: RequestUserDto): Promise<GetIncidentsDto> {
-    return this.uptimeService.getIncidents(id, req.user.dbUserId);
+  getIncidents(
+    @Param('id') id: string,
+    @Request() req: RequestUserDto,
+    @Query() paginationDto: PaginationIncidentsDto,
+  ): Promise<GetIncidentsDto> {
+    return this.uptimeService.getIncidents(id, req.user.dbUserId, paginationDto);
   }
   
   @Throttle({ medium: {} })

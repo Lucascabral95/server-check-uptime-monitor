@@ -10,7 +10,9 @@ import "./ServerStatusDashboard.scss"
 const ServerStatusDashboardView  = () => { 
     const params = {
         includeInactive: true,
-        limit: 1000,
+        // El backend cachea el límite en 100 (ver PaginationUptimeDto,
+        // @Max(100)) para evitar queries sin límite.
+        limit: 100,
     };
 
   const { uptimes, myStats } = useUptime(undefined, params);

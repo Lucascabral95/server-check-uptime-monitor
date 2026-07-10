@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsOptional, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
 export enum IncidentSortBy {
   RECENT = 'recent',
@@ -11,6 +12,21 @@ export enum IncidentSortBy {
 }
 
 export class PaginationIncidentsDto {
+  @ApiPropertyOptional({ description: 'Page number (starts at 1)', default: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ description: 'Items per page', default: 20, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
+
   @ApiPropertyOptional({
     enum: IncidentSortBy,
     description: 'Ordenar incidentes: recent (más recientes), oldest (más antiguos), name_asc (A-Z), name_desc (Z-A), duration_longest (mayor tiempo caído), duration_shortest (menor tiempo caído)',

@@ -22,13 +22,13 @@ vi.mock('aws-amplify/auth', () => ({
 }));
 
 describe('AuthService', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
-
-    Object.defineProperty(document, 'cookie', {
-      writable: true,
-      value: '',
-    });
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   describe('register', () => {
@@ -59,7 +59,7 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should login successfully and set cookies', async () => {
+    it('should login successfully and establish the httpOnly session', async () => {
       vi.mocked(signIn).mockResolvedValue({ isSignedIn: true } as never);
       vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: {
@@ -78,8 +78,12 @@ describe('AuthService', () => {
         password: 'ValidPass123!',
       });
 
-      // JSDOM solo conserva la última cookie, así que validamos intentos
-      expect(document.cookie).toContain('idToken=idToken123');
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ accessToken: 'accessToken123', idToken: 'idToken123' }),
+      });
     });
 
     it('should throw error when login is not complete', async () => {
@@ -92,17 +96,37 @@ describe('AuthService', () => {
         })
       ).rejects.toThrow('Login no completado');
     });
+
+    it('should throw when the session route handler rejects the tokens', async () => {
+      vi.mocked(signIn).mockResolvedValue({ isSignedIn: true } as never);
+      vi.mocked(fetchAuthSession).mockResolvedValue({
+        tokens: {
+          accessToken: { toString: () => 'accessToken123' },
+          idToken: { toString: () => 'idToken123' },
+        },
+      } as never);
+      fetchMock.mockResolvedValue({ ok: false });
+
+      await expect(
+        authService.login({
+          email: 'test@example.com',
+          password: 'ValidPass123!',
+        })
+      ).rejects.toThrow('No se pudo establecer la sesión');
+    });
   });
 
   describe('logout', () => {
-    it('should logout and clear cookies', async () => {
+    it('should logout and clear the httpOnly session', async () => {
       vi.mocked(signOut).mockResolvedValue(undefined as never);
 
       await authService.logout();
 
       expect(signOut).toHaveBeenCalled();
-      expect(document.cookie).toContain('idToken=');
-      expect(document.cookie).toContain('max-age=0');
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/session', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
     });
   });
 

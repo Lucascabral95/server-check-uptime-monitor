@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { fetchAuthSession } from 'aws-amplify/auth';
 
 import { useAuth } from './useAuth';
 import { useAuthStore } from '@/lib/store/authStore';
@@ -17,16 +16,6 @@ vi.mock('@/infraestructure/services/auth.service', () => ({
   },
 }));
 
-vi.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: vi.fn(),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  getCurrentUser: vi.fn(),
-  signUp: vi.fn(),
-  confirmSignUp: vi.fn(),
-  resendSignUpCode: vi.fn(),
-}));
-
 const mockUser = {
   username: 'test@example.com',
   userId: 'user-123',
@@ -36,17 +25,11 @@ const mockUser = {
   },
 };
 
-const mockTokens = {
-  accessToken: 'mock-access-token',
-  idToken: 'mock-id-token',
-};
-
 describe('useAuth', () => {
   beforeEach(() => {
     useAuthStore.setState({
       isAuthenticated: false,
       user: null,
-      tokens: null,
       error: null,
       isLoading: false,
     });
@@ -64,13 +47,6 @@ describe('useAuth', () => {
       deliveryMedium: 'EMAIL',
       attribute: 'email',
     });
-
-    (fetchAuthSession as any).mockResolvedValue({
-      tokens: {
-        accessToken: { toString: () => mockTokens.accessToken },
-        idToken: { toString: () => mockTokens.idToken },
-      },
-    });
   });
 
   afterEach(() => {
@@ -84,7 +60,6 @@ describe('useAuth', () => {
       expect(result.current).toEqual({
         isAuthenticated: false,
         user: null,
-        tokens: null,
         error: null,
         isLoading: false,
         register: expect.any(Function),
@@ -120,7 +95,6 @@ describe('useAuth', () => {
 
       expect(result.current.isAuthenticated).toBe(true);
       expect(result.current.user).toEqual(mockUser);
-      expect(result.current.tokens).toEqual(mockTokens);
       expect(result.current.error).toBeNull();
       expect(result.current.isLoading).toBe(false);
     });
@@ -255,7 +229,6 @@ describe('useAuth', () => {
       useAuthStore.setState({
         isAuthenticated: true,
         user: mockUser,
-        tokens: mockTokens,
       });
 
       const { result } = renderHook(() => useAuth({ checkOnMount: false }));
@@ -267,7 +240,6 @@ describe('useAuth', () => {
       expect(authService.logout).toHaveBeenCalled();
       expect(result.current.isAuthenticated).toBe(false);
       expect(result.current.user).toBeNull();
-      expect(result.current.tokens).toBeNull();
       expect(result.current.isLoading).toBe(false);
     });
 
@@ -275,7 +247,6 @@ describe('useAuth', () => {
       useAuthStore.setState({
         isAuthenticated: true,
         user: mockUser,
-        tokens: mockTokens,
       });
 
       (authService.logout as any).mockRejectedValue(new Error('Network error'));
@@ -289,14 +260,12 @@ describe('useAuth', () => {
       // A pesar del error, el estado debería limpiarse
       expect(result.current.isAuthenticated).toBe(false);
       expect(result.current.user).toBeNull();
-      expect(result.current.tokens).toBeNull();
     });
 
     it('should set loading state during logout', async () => {
       useAuthStore.setState({
         isAuthenticated: true,
         user: mockUser,
-        tokens: mockTokens,
       });
 
       let resolveLogout: any;
@@ -331,7 +300,6 @@ describe('useAuth', () => {
       expect(authService.getCurrentUser).toHaveBeenCalled();
       expect(result.current.isAuthenticated).toBe(true);
       expect(result.current.user).toEqual(mockUser);
-      expect(result.current.tokens).toEqual(mockTokens);
       expect(result.current.isLoading).toBe(false);
     });
 
@@ -341,7 +309,6 @@ describe('useAuth', () => {
       useAuthStore.setState({
         isAuthenticated: true,
         user: mockUser,
-        tokens: mockTokens,
       });
 
       const { result } = renderHook(() => useAuth({ checkOnMount: false }));
@@ -352,7 +319,6 @@ describe('useAuth', () => {
 
       expect(result.current.isAuthenticated).toBe(false);
       expect(result.current.user).toBeNull();
-      expect(result.current.tokens).toBeNull();
       expect(result.current.isLoading).toBe(false);
     });
   });
@@ -451,14 +417,12 @@ describe('useAuth', () => {
       const storeState = useAuthStore.getState();
       expect(storeState.isAuthenticated).toBe(true);
       expect(storeState.user).toEqual(mockUser);
-      expect(storeState.tokens).toEqual(mockTokens);
     });
 
     it('should clear Zustand store on logout', async () => {
       useAuthStore.setState({
         isAuthenticated: true,
         user: mockUser,
-        tokens: mockTokens,
       });
 
       const { result } = renderHook(() => useAuth({ checkOnMount: false }));
@@ -470,7 +434,6 @@ describe('useAuth', () => {
       const storeState = useAuthStore.getState();
       expect(storeState.isAuthenticated).toBe(false);
       expect(storeState.user).toBeNull();
-      expect(storeState.tokens).toBeNull();
     });
   });
 });

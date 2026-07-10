@@ -4,6 +4,7 @@ import { PingLogService } from './ping-log.service';
 import { NotFoundException } from '@nestjs/common';
 import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { CanActivate } from '@nestjs/common';
 
 describe('PingLogController', () => {
@@ -28,6 +29,8 @@ describe('PingLogController', () => {
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true } as CanActivate)
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true } as CanActivate)
       .compile();
 
     controller = module.get<PingLogController>(PingLogController);
@@ -39,26 +42,49 @@ describe('PingLogController', () => {
   });
 
   describe('findAll', () => {
-    it('should return an array of ping logs', async () => {
-      const logs = [
-        { id: '1', statusCode: 200, success: true },
-        { id: '2', statusCode: 500, success: false },
-      ];
-      pingLogServiceMock.findAll.mockResolvedValue(logs);
+    it('should return paginated ping logs', async () => {
+      const paginationDto: PaginationPingLogDto = { page: 1, limit: 10 };
+      const expectedResult = {
+        data: [
+          { id: '1', statusCode: 200, success: true },
+          { id: '2', statusCode: 500, success: false },
+        ],
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          nextPage: null,
+          prevPage: null,
+          totalItems: 2,
+          itemsPerPage: 10,
+        },
+      };
+      pingLogServiceMock.findAll.mockResolvedValue(expectedResult);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll(paginationDto);
 
-      expect(result).toEqual(logs);
-      expect(pingLogServiceMock.findAll).toHaveBeenCalled();
+      expect(result).toEqual(expectedResult);
+      expect(pingLogServiceMock.findAll).toHaveBeenCalledWith(paginationDto);
     });
 
-    it('should return an empty array if no logs found', async () => {
-      pingLogServiceMock.findAll.mockResolvedValue([]);
+    it('should return an empty page if no logs found', async () => {
+      const paginationDto: PaginationPingLogDto = {};
+      const expectedResult = {
+        data: [],
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          nextPage: null,
+          prevPage: null,
+          totalItems: 0,
+          itemsPerPage: 10,
+        },
+      };
+      pingLogServiceMock.findAll.mockResolvedValue(expectedResult);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll(paginationDto);
 
-      expect(result).toEqual([]);
-      expect(pingLogServiceMock.findAll).toHaveBeenCalled();
+      expect(result.data).toEqual([]);
+      expect(pingLogServiceMock.findAll).toHaveBeenCalledWith(paginationDto);
     });
 
     it('should propagate NotFoundException from service', async () => {
@@ -66,7 +92,7 @@ describe('PingLogController', () => {
         new NotFoundException('No ping logs found')
       );
 
-      await expect(controller.findAll()).rejects.toThrow(NotFoundException);
+      await expect(controller.findAll({})).rejects.toThrow(NotFoundException);
     });
   });
 

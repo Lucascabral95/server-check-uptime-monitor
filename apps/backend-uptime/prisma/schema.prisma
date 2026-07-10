@@ -18,13 +18,18 @@ enum Role {
    GUEST
 }
 
+enum IncidentStatus {
+  ONGOING
+  RESOLVED
+}
+
 model User {
   id         String    @id @default(uuid())
   cognitoSub String?   @unique @map("cognito_sub")
   email      String    @unique
   role       Role      @default(USER)
   createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @default(now()) @map("updated_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
   monitors   Monitor[]
 
   @@map("users")
@@ -43,12 +48,18 @@ model Monitor {
   status    Status    @default(PENDING)
 
   createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @default(now()) @map("updated_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs      PingLog[]
+  incidents Incident[]
 
-  @@index([isActive, nextCheck])
+  // findAll() (uptime.service.ts) siempre filtra por userId y ordena por
+  // createdAt; getStatsByUserId() siempre filtra por userId+isActive(+status).
+  // El polling por nextCheck fue reemplazado por jobs recurrentes de BullMQ,
+  // así que el índice viejo [isActive, nextCheck] no lo usa ninguna query.
+  @@index([userId, createdAt])
+  @@index([userId, isActive, status])
   @@map("monitors")
 }
 
@@ -63,9 +74,50 @@ model PingLog {
   
   monitor    Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @default(now()) @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([monitorId, timestamp(sort: Desc)])
   @@index([monitorId, success])
   @@map("ping_logs")
 }
+
+// Se escribe desde uptime.processor.ts en cada transición UP<->DOWN del
+// monitor (dentro de la misma transacción que el update de status), NO se
+// deriva escaneando ping_logs. Ver getIncidents/getIncidentsByUserId en
+// uptime.service.ts, que antes reconstruían esto con un findMany sin límite
+// por cada monitor.
+model Incident {
+  id              String         @id @default(uuid())
+  monitorId       String         @map("monitor_id")
+  // Denormalizado a propósito: permite paginar/ordenar incidentes de TODOS
+  // los monitores de un usuario con un único where:{userId}, en vez de un
+  // IN (...) sobre la lista de monitores. Los monitores no cambian de
+  // dueño, así que este valor es efectivamente inmutable.
+  userId          String         @map("user_id")
+  status          IncidentStatus @default(ONGOING)
+  startedAt       DateTime       @map("started_at")
+  endedAt         DateTime?      @map("ended_at")
+  firstStatusCode Int?           @map("first_status_code")
+  firstError      String?        @map("first_error")
+  lastError       String?        @map("last_error")
+  affectedChecks  Int            @default(1) @map("affected_checks")
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([monitorId, startedAt(sort: Desc)])
+  @@index([userId, startedAt(sort: Desc)])
+  @@index([userId, status])
+  @@map("incidents")
+}
+
+// NOTA para quien genere la migración (`npx prisma migrate dev --create-only
+// --name add_incidents_table`): Prisma no puede expresar índices parciales.
+// Antes de aplicar la migración generada, agregarle a mano esta línea (es
+// lo que garantiza que solo pueda existir UN incidente ONGOING por monitor,
+// y es la base de la escritura idempotente bajo concurrencia):
+//
+//   CREATE UNIQUE INDEX "incidents_one_ongoing_per_monitor"
+//     ON "incidents" ("monitor_id") WHERE "status" = 'ONGOING';

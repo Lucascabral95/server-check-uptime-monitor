@@ -126,4 +126,15 @@ export class GetIncidentsDto {
     })
     @IsNumber()
     ongoingIncidents: number;
+
+    @ApiProperty({
+        description: 'Paginación de la lista de incidentes (incidents solo trae la página actual)',
+    })
+    @IsObject()
+    pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalItems: number;
+        itemsPerPage: number;
+    };
 }

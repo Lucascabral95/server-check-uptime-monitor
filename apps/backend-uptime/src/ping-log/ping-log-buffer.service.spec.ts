@@ -120,4 +120,34 @@ describe('PingLogBufferService', () => {
 
     expect(prismaMock.pingLog.createMany).toHaveBeenCalled();
   });
+
+  it('flushFinal should flush whatever is buffered at shutdown time', async () => {
+    prismaMock.pingLog.createMany.mockResolvedValue({ count: 1 });
+
+    service.add({
+      monitorId: 'monitor-1',
+      statusCode: 200,
+      durationMs: 100,
+      success: true,
+    });
+
+    await service.flushFinal();
+
+    expect(prismaMock.pingLog.createMany).toHaveBeenCalledTimes(1);
+    expect(service.getStats().currentSize).toBe(0);
+  });
+
+  it('onModuleDestroy should only clear timers, NOT flush (flush is driven explicitly by the shutdown orchestrator)', async () => {
+    service.add({
+      monitorId: 'monitor-1',
+      statusCode: 200,
+      durationMs: 100,
+      success: true,
+    });
+
+    await service.onModuleDestroy();
+
+    expect(prismaMock.pingLog.createMany).not.toHaveBeenCalled();
+    expect(service.getStats().currentSize).toBe(1);
+  });
 });

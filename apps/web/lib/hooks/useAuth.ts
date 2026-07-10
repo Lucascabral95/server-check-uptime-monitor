@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
 
 import { authService } from '@/infraestructure/services/auth.service';
 import { LoginException } from '@/infraestructure/interfaces';
@@ -10,7 +9,6 @@ export function useAuth(options?: { checkOnMount: boolean }) {
   const {
     isAuthenticated,
     user,
-    tokens,
     error,
     isLoading,
     setUser,
@@ -46,11 +44,7 @@ export function useAuth(options?: { checkOnMount: boolean }) {
       await authService.login({ email, password });
 
       const currentUser = await authService.getCurrentUser();
-      const session = await fetchAuthSession();
-      const accessToken = session.tokens?.accessToken?.toString() || '';
-      const idToken = session.tokens?.idToken?.toString() || '';
-
-      setUser(currentUser, { accessToken, idToken });
+      setUser(currentUser);
     } catch (err: unknown) {
       const authError = err as LoginException;
       setError(authError);
@@ -81,11 +75,7 @@ export function useAuth(options?: { checkOnMount: boolean }) {
 
     try {
       const currentUser = await authService.getCurrentUser();
-      const session = await fetchAuthSession();
-      const accessToken = session.tokens?.accessToken?.toString() || '';
-      const idToken = session.tokens?.idToken?.toString() || '';
-
-      setUser(currentUser, { accessToken, idToken });
+      setUser(currentUser);
     } catch {
       clearAuth();
     } finally {
@@ -136,7 +126,6 @@ export function useAuth(options?: { checkOnMount: boolean }) {
     // Estado
     isAuthenticated,
     user,
-    tokens,
     error,
     isLoading,
 

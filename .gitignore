@@ -33,3 +33,6 @@ Thumbs.db
 
 # Claude
 .CLAUDE.md
+
+# Playwright MCP session artifacts
+.playwright-mcp/

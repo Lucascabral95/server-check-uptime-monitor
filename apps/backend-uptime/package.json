@@ -20,14 +20,21 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:create": "prisma migrate dev --create-only",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:migrate:diff:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code",
     "prisma:seed": "ts-node prisma/seed/seed.ts",
     "prisma:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "npm run db:reset && npm run prisma:seed",
-    "db:setup": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed"
+    "db:setup": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
+    "db:verify": "prisma generate && prisma migrate deploy && prisma migrate status",
+    "backfill:incidents": "ts-node prisma/backfill/backfill-incidents.ts",
+    "backfill:incidents:dry-run": "ts-node prisma/backfill/backfill-incidents.ts --dry-run"
   },
   "prisma": {
-    "seed": "ts-node src/prisma/seed/seed.ts"
+    "seed": "ts-node prisma/seed/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.975.0",
@@ -40,6 +47,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.5",
+    "@nestjs/terminus": "^11.1.1",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
@@ -47,7 +55,9 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "dotenv": "^17.2.3",
+    "helmet": "^8.2.0",
     "ioredis": "^5.9.2",
+    "ipaddr.js": "^1.9.1",
     "joi": "^18.0.2",
     "jose": "^6.1.3",
     "nodemailer": "^7.0.12",

@@ -74,8 +74,14 @@ export class PingLogBufferService implements OnModuleInit, OnModuleDestroy {
         );
     }
 
+    // Solo detiene los timers acá (no depende de que ningún otro módulo siga
+    // vivo). El flush final NO va acá: si corriera en onModuleDestroy
+    // (fase 1 del shutdown de Nest) se ejecutaría ANTES de que el worker de
+    // BullMQ termine de drenar sus jobs activos (fase 2), y cualquier ping
+    // que ese job en vuelo agregue después quedaría sin flushear. El flush
+    // final lo dispara explícitamente GracefulShutdownService llamando a
+    // flushFinal(), después de cerrar el worker.
     async onModuleDestroy() {
-        // Detener timers
         if (this.flushInterval) {
             clearInterval(this.flushInterval);
             this.flushInterval = null;
@@ -85,11 +91,6 @@ export class PingLogBufferService implements OnModuleInit, OnModuleDestroy {
             clearInterval(this.statsInterval);
             this.statsInterval = null;
         }
-
-        // Flush final (sin timeout)
-        await this.flushFinal();
-
-        this.logger.log('PingLogBufferService destroyed');
     }
 
     add(log: PingLogBuffer): boolean {
@@ -257,7 +258,7 @@ export class PingLogBufferService implements OnModuleInit, OnModuleDestroy {
         throw lastError || new Error('Database write failed after all retries');
     }
 
-    private async flushFinal(): Promise<void> {
+    async flushFinal(): Promise<void> {
         this.logger.log('Performing final flush before shutdown...');
 
         const totalLogs = this.buffer.length + this.retryBuffer.length;

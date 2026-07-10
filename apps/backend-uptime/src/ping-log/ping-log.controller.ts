@@ -22,6 +22,9 @@ import {
 import { PingLogService } from './ping-log.service';
 import { RequestUserDto } from 'src/user/dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
 import { GetPingLogDto } from './dto';
 
@@ -47,12 +50,17 @@ export class PingLogController {
   }
 
   // GET for all ping logs
-  @SkipThrottle()
+  @Throttle({ medium: {} })
   @Get()
-  @ApiOperation({ summary: 'Obtener todos los PingLogs (admin/debug)' })
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener todos los PingLogs, paginado (solo ADMIN)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'monitorId', required: false, type: String })
   @ApiResponse({ status: 200, type: [GetPingLogDto] })
-  findAll() {
-    return this.pingLogService.findAll();
+  findAll(@Query() paginationDto: PaginationPingLogDto) {
+    return this.pingLogService.findAll(paginationDto);
   }
 
   // Obtener ping logs de monitors creados por un usuario

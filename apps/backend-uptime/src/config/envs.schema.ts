@@ -23,6 +23,14 @@ interface EnvsSchemaInterface {
   GMAIL_APP_USER: string;
   GMAIL_APP_PASSWORD: string;
   SEND_EMAIL_NODEMAILER_SES: string;
+  COGNITO_ISSUER: string;
+  COGNITO_CLIENT_ID: string;
+  DB_POOL_MAX: number;
+  DB_POOL_MIN: number;
+  DB_POOL_IDLE_TIMEOUT_MS: number;
+  DB_POOL_CONNECTION_TIMEOUT_MS: number;
+  SHUTDOWN_DRAIN_DELAY_MS: number;
+  WORKER_CONCURRENCY: number;
 }
 
 const envsSchema = joi.object<EnvsSchemaInterface>({
@@ -46,7 +54,15 @@ const envsSchema = joi.object<EnvsSchemaInterface>({
   GMAIL_APP_USER: joi.string().required(),
   GMAIL_APP_PASSWORD: joi.string().required(),
   SEND_EMAIL_NODEMAILER_SES: joi.string().required(),
-}).unknown(true);  
+  COGNITO_ISSUER: joi.string().uri().required(),
+  COGNITO_CLIENT_ID: joi.string().required(),
+  DB_POOL_MAX: joi.number().default(10),
+  DB_POOL_MIN: joi.number().default(2),
+  DB_POOL_IDLE_TIMEOUT_MS: joi.number().default(30000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: joi.number().default(5000),
+  SHUTDOWN_DRAIN_DELAY_MS: joi.number().default(3000),
+  WORKER_CONCURRENCY: joi.number().default(5),
+}).unknown(true);
 
 const { error, value: vars } = envsSchema.validate(process.env);
 
@@ -76,4 +92,12 @@ export const envs = {
   gmail_app_user: vars.GMAIL_APP_USER,
   gmail_app_password: vars.GMAIL_APP_PASSWORD,
   send_email_nodemailer_ses: vars.SEND_EMAIL_NODEMAILER_SES,
+  cognito_issuer: vars.COGNITO_ISSUER,
+  cognito_client_id: vars.COGNITO_CLIENT_ID,
+  db_pool_max: vars.DB_POOL_MAX,
+  db_pool_min: vars.DB_POOL_MIN,
+  db_pool_idle_timeout_ms: vars.DB_POOL_IDLE_TIMEOUT_MS,
+  db_pool_connection_timeout_ms: vars.DB_POOL_CONNECTION_TIMEOUT_MS,
+  shutdown_drain_delay_ms: vars.SHUTDOWN_DRAIN_DELAY_MS,
+  worker_concurrency: vars.WORKER_CONCURRENCY,
 };

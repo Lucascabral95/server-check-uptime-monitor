@@ -43,7 +43,9 @@ export const useFilters = () => {
     search: debouncedSearch || undefined,
     status: (selectedStatus && selectedStatus !== "ALL") ? selectedStatus : undefined,
     sortBy: selectedSort || undefined,
-    limit: 1000,
+    // El backend cachea el límite en 100 (ver PaginationUptimeDto, @Max(100))
+    // para evitar queries sin límite.
+    limit: 100,
     includeInactive: true,
     email: currentEmail,
   }), [debouncedSearch, selectedStatus, selectedSort, currentEmail]);

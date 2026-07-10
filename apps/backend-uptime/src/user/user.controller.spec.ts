@@ -72,9 +72,10 @@ describe('UserController', () => {
 
       mockUserService.findAll.mockReturnValue(expectedUsers);
 
-      const result = controller.findAll();
+      const paginationDto = { page: 1, limit: 10 };
+      const result = controller.findAll(paginationDto);
 
-      expect(service.findAll).toHaveBeenCalled();
+      expect(service.findAll).toHaveBeenCalledWith(paginationDto);
       expect(result).toEqual(expectedUsers);
     });
   });

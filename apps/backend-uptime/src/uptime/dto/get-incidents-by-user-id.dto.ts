@@ -231,4 +231,15 @@ export class GetIncidentsByUserIdDto {
     })
     @IsNumber()
     monitorsDown: number;
+
+    @ApiProperty({
+        description: 'Paginación de la lista de incidentes (incidents solo trae la página actual; byMonitor no está paginado)',
+    })
+    @IsObject()
+    pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalItems: number;
+        itemsPerPage: number;
+    };
 }
