@@ -24,8 +24,6 @@ export async function getUserById(id: string) {
     try {
         const { data } = await axiosInstance.get(`/user/${id}`);
         
-        console.log(data);
-
         return data;
     } catch (error) {
          if (isAxiosError(error)) {
@@ -40,8 +38,6 @@ export async function getUserById(id: string) {
 export async function updateUserById(id: string, userData: { email?: string }) {
     try {
         const { data } = await axiosInstance.patch(`/user/${id}`, userData);
-
-        console.log(data);
 
         return data;
     } catch (error) {
@@ -58,8 +54,6 @@ export async function deleteUserById(id: string) {
     try {
         const { data } = await axiosInstance.delete(`/user/${id}`);
         
-        console.log(data);
-
         return data;
     } catch (error) {
         if (isAxiosError(error)) {

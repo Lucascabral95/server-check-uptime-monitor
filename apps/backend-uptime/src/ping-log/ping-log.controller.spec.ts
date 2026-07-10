@@ -4,6 +4,7 @@ import { PingLogService } from './ping-log.service';
 import { NotFoundException } from '@nestjs/common';
 import { PaginationPingLogDto } from './dto/pagination-ping-log.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PingLogOwnerGuard } from 'src/auth/guards/ping-log-owner.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { CanActivate } from '@nestjs/common';
 
@@ -28,6 +29,8 @@ describe('PingLogController', () => {
       ],
     })
       .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true } as CanActivate)
+      .overrideGuard(PingLogOwnerGuard)
       .useValue({ canActivate: () => true } as CanActivate)
       .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true } as CanActivate)
@@ -88,9 +91,7 @@ describe('PingLogController', () => {
     });
 
     it('should propagate NotFoundException from service', async () => {
-      pingLogServiceMock.findAll.mockRejectedValue(
-        new NotFoundException('No ping logs found')
-      );
+      pingLogServiceMock.findAll.mockRejectedValue(new NotFoundException('No ping logs found'));
 
       await expect(controller.findAll({})).rejects.toThrow(NotFoundException);
     });
@@ -109,7 +110,7 @@ describe('PingLogController', () => {
 
     it('should propagate NotFoundException from service', async () => {
       pingLogServiceMock.findOne.mockRejectedValue(
-        new NotFoundException('PingLog with id 123 not found')
+        new NotFoundException('PingLog with id 123 not found'),
       );
 
       await expect(controller.findOne('123')).rejects.toThrow(NotFoundException);
@@ -128,7 +129,7 @@ describe('PingLogController', () => {
 
     it('should propagate NotFoundException from service', async () => {
       pingLogServiceMock.remove.mockRejectedValue(
-        new NotFoundException('PingLog with id 123 not found')
+        new NotFoundException('PingLog with id 123 not found'),
       );
 
       await expect(controller.remove('123')).rejects.toThrow(NotFoundException);
@@ -168,7 +169,7 @@ describe('PingLogController', () => {
       expect(result).toEqual(expectedResult);
       expect(pingLogServiceMock.findAllPingLogsByUser).toHaveBeenCalledWith(
         'user-123',
-        paginationDto
+        paginationDto,
       );
     });
 
@@ -202,7 +203,7 @@ describe('PingLogController', () => {
       expect(result).toEqual(expectedResult);
       expect(pingLogServiceMock.findAllPingLogsByUser).toHaveBeenCalledWith(
         'user-123',
-        paginationDto
+        paginationDto,
       );
     });
 
@@ -228,10 +229,7 @@ describe('PingLogController', () => {
       const result = await controller.findAllByUser(mockRequest, {});
 
       expect(result.data).toEqual([]);
-      expect(pingLogServiceMock.findAllPingLogsByUser).toHaveBeenCalledWith(
-        'user-123',
-        {}
-      );
+      expect(pingLogServiceMock.findAllPingLogsByUser).toHaveBeenCalledWith('user-123', {});
     });
 
     it('should propagate errors from service', async () => {
@@ -239,13 +237,9 @@ describe('PingLogController', () => {
         user: { dbUserId: 'user-123' },
       } as any;
 
-      pingLogServiceMock.findAllPingLogsByUser.mockRejectedValue(
-        new Error('Database error')
-      );
+      pingLogServiceMock.findAllPingLogsByUser.mockRejectedValue(new Error('Database error'));
 
-      await expect(
-        controller.findAllByUser(mockRequest, {})
-      ).rejects.toThrow('Database error');
+      await expect(controller.findAllByUser(mockRequest, {})).rejects.toThrow('Database error');
     });
   });
 });

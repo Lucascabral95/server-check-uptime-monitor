@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UptimeService } from './uptime.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { getQueueToken } from '@nestjs/bullmq';
 import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { SortBy, IncidentSortBy } from './dto';
+import { MonitorScheduleOutboxService } from './services/monitor-schedule-outbox.service';
+import { MonitorScheduleService } from './services/monitor-schedule.service';
 
 describe('UptimeService', () => {
   let service: UptimeService;
@@ -56,14 +57,16 @@ describe('UptimeService', () => {
       updateMany: jest.fn(),
     },
     $queryRaw: jest.fn(),
+    $transaction: jest.fn(),
   };
 
-  const queueMock = {
-    add: jest.fn(),
-    remove: jest.fn(),
-    getRepeatableJobs: jest.fn(),
-    removeRepeatableByKey: jest.fn(),
-    getJobs: jest.fn(),
+  const monitorScheduleOutboxServiceMock = {
+    enqueue: jest.fn(),
+  };
+
+  const monitorScheduleServiceMock = {
+    clearAll: jest.fn(),
+    synchronizeAll: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -76,13 +79,20 @@ describe('UptimeService', () => {
           useValue: prismaMock,
         },
         {
-          provide: getQueueToken('uptime-monitor'),
-          useValue: queueMock,
+          provide: MonitorScheduleOutboxService,
+          useValue: monitorScheduleOutboxServiceMock,
+        },
+        {
+          provide: MonitorScheduleService,
+          useValue: monitorScheduleServiceMock,
         },
       ],
     }).compile();
 
     service = module.get<UptimeService>(UptimeService);
+    prismaMock.$transaction.mockImplementation(async callback =>
+      callback({ monitor: prismaMock.monitor, incident: prismaMock.incident }),
+    );
   });
 
   afterEach(() => {
@@ -105,7 +115,7 @@ describe('UptimeService', () => {
     it('should create a monitor successfully', async () => {
       prismaMock.user.findUnique = jest.fn().mockResolvedValue({ id: 'user-1' });
       prismaMock.monitor.create = jest.fn().mockResolvedValue(mockMonitor);
-      queueMock.add = jest.fn().mockResolvedValue({ id: 'job-1' });
+      monitorScheduleOutboxServiceMock.enqueue.mockResolvedValue(undefined);
 
       const result = await service.create(createDto, 'user-1');
 
@@ -123,7 +133,10 @@ describe('UptimeService', () => {
           isActive: true,
         }),
       });
-      expect(queueMock.add).toHaveBeenCalled();
+      expect(monitorScheduleOutboxServiceMock.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        mockMonitor.id,
+      );
     });
 
     it('should throw NotFoundException when user does not exist', async () => {
@@ -139,10 +152,10 @@ describe('UptimeService', () => {
 
     it('should calculate nextCheck based on frequency', async () => {
       prismaMock.user.findUnique = jest.fn().mockResolvedValue({ id: 'user-1' });
-      prismaMock.monitor.create = jest.fn().mockImplementation((data) => {
+      prismaMock.monitor.create = jest.fn().mockImplementation(data => {
         return Promise.resolve({ ...mockMonitor, ...data.data });
       });
-      queueMock.add = jest.fn().mockResolvedValue({ id: 'job-1' });
+      monitorScheduleOutboxServiceMock.enqueue.mockResolvedValue(undefined);
 
       await service.create(createDto, 'user-1');
 
@@ -297,7 +310,10 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(3);
 
-      const result = await service.findAll({ sortBy: SortBy.STATUS_DOWN, page: 1, limit: 10 }, mockRequestingUser);
+      const result = await service.findAll(
+        { sortBy: SortBy.STATUS_DOWN, page: 1, limit: 10 },
+        mockRequestingUser,
+      );
 
       expect(result.data[0].status).toBe('DOWN');
       expect(result.data[1].status).toBe('UP');
@@ -313,7 +329,10 @@ describe('UptimeService', () => {
       prismaMock.monitor.findMany = jest.fn().mockResolvedValue(monitors);
       prismaMock.monitor.count = jest.fn().mockResolvedValue(3);
 
-      const result = await service.findAll({ sortBy: SortBy.STATUS_UP, page: 1, limit: 10 }, mockRequestingUser);
+      const result = await service.findAll(
+        { sortBy: SortBy.STATUS_UP, page: 1, limit: 10 },
+        mockRequestingUser,
+      );
 
       expect(result.data[0].status).toBe('UP');
       expect(result.data[1].status).toBe('DOWN');
@@ -365,9 +384,7 @@ describe('UptimeService', () => {
       // verifyOwnerMonitorByUserId returns null (monitor doesn't exist)
       prismaMock.monitor.findUnique = jest.fn().mockResolvedValue(null);
 
-      await expect(service.findOne('monitor-1', 'user-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('monitor-1', 'user-1')).rejects.toThrow(NotFoundException);
       await expect(service.findOne('monitor-1', 'user-1')).rejects.toThrow(
         "Monitor with id 'monitor-1' not found",
       );
@@ -404,7 +421,7 @@ describe('UptimeService', () => {
       });
     });
 
-    it('should update monitor job when frequency changes', async () => {
+    it('enqueues a schedule synchronization when frequency changes', async () => {
       prismaMock.monitor.findUnique = jest
         .fn()
         .mockResolvedValueOnce({ userId: 'user-1' })
@@ -413,16 +430,15 @@ describe('UptimeService', () => {
         ...mockMonitor,
         frequency: 180,
       });
-      queueMock.remove = jest.fn().mockResolvedValue(true);
-      queueMock.add = jest.fn().mockResolvedValue({ id: 'new-job' });
-
       await service.update('monitor-1', { frequency: 180 }, 'user-1');
 
-      expect(queueMock.remove).toHaveBeenCalledWith('monitor:monitor-1');
-      expect(queueMock.add).toHaveBeenCalled();
+      expect(monitorScheduleOutboxServiceMock.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        'monitor-1',
+      );
     });
 
-    it('should remove monitor job when isActive is set to false', async () => {
+    it('enqueues a schedule synchronization when isActive is set to false', async () => {
       prismaMock.monitor.findUnique = jest
         .fn()
         .mockResolvedValueOnce({ userId: 'user-1' })
@@ -431,12 +447,12 @@ describe('UptimeService', () => {
         ...mockMonitor,
         isActive: false,
       });
-      queueMock.remove = jest.fn().mockResolvedValue(true);
-
       await service.update('monitor-1', { isActive: false }, 'user-1');
 
-      expect(queueMock.remove).toHaveBeenCalledWith('monitor:monitor-1');
-      expect(queueMock.add).not.toHaveBeenCalled();
+      expect(monitorScheduleOutboxServiceMock.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        'monitor-1',
+      );
     });
 
     it('resolves any ONGOING incident when the monitor is deactivated (processor will never run DOWN->UP again)', async () => {
@@ -448,8 +464,6 @@ describe('UptimeService', () => {
         ...mockMonitor,
         isActive: false,
       });
-      queueMock.remove = jest.fn().mockResolvedValue(true);
-
       await service.update('monitor-1', { isActive: false }, 'user-1');
 
       expect(prismaMock.incident.updateMany).toHaveBeenCalledWith({
@@ -480,91 +494,56 @@ describe('UptimeService', () => {
         .mockResolvedValueOnce({ userId: 'user-1' })
         .mockResolvedValueOnce(mockMonitor);
       prismaMock.monitor.delete = jest.fn().mockResolvedValue(mockMonitor);
-      queueMock.remove = jest.fn().mockResolvedValue(true);
-
       const result = await service.remove('monitor-1', 'user-1');
 
       expect(result).toBe('Monitor deleted successfully');
-      expect(queueMock.remove).toHaveBeenCalledWith('monitor:monitor-1');
+      expect(monitorScheduleOutboxServiceMock.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        'monitor-1',
+      );
       expect(prismaMock.monitor.delete).toHaveBeenCalledWith({
         where: { id: 'monitor-1' },
       });
     });
 
-    it('should remove monitor job before deleting monitor', async () => {
+    it('persists the deletion event before deleting the monitor', async () => {
       prismaMock.monitor.findUnique = jest
         .fn()
         .mockResolvedValueOnce({ userId: 'user-1' })
         .mockResolvedValueOnce(mockMonitor);
       prismaMock.monitor.delete = jest.fn().mockResolvedValue(mockMonitor);
-      queueMock.remove = jest.fn().mockResolvedValue(true);
-
       await service.remove('monitor-1', 'user-1');
 
-      expect(queueMock.remove).toHaveBeenCalled();
+      expect(monitorScheduleOutboxServiceMock.enqueue).toHaveBeenCalled();
       expect(prismaMock.monitor.delete).toHaveBeenCalled();
       const removeCall = (prismaMock.monitor.delete as jest.Mock).mock.invocationCallOrder[0];
-      const queueCall = (queueMock.remove as jest.Mock).mock.invocationCallOrder[0];
-      expect(queueCall).toBeLessThan(removeCall);
+      const outboxCall = (monitorScheduleOutboxServiceMock.enqueue as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(outboxCall).toBeLessThan(removeCall);
     });
   });
 
   describe('clearAllQueueJobs', () => {
-    it('should clear repeatable and waiting jobs and return count', async () => {
-      const repeatJobs = [
-        { key: 'repeat-1' },
-        { key: 'repeat-2' },
-      ];
-      const waitingJobs = [
-        { id: 'job-1', remove: jest.fn().mockResolvedValue(true) },
-      ];
-      queueMock.getRepeatableJobs = jest.fn().mockResolvedValue(repeatJobs);
-      queueMock.removeRepeatableByKey = jest.fn().mockResolvedValue(true);
-      queueMock.getJobs = jest.fn().mockResolvedValue(waitingJobs);
+    it('delegates queue cleanup to the schedule service', async () => {
+      const expectedResult = { message: 'Queue cleared successfully', removedCount: 3 };
+      monitorScheduleServiceMock.clearAll.mockResolvedValue(expectedResult);
 
       const result = await service.clearAllQueueJobs();
 
-      expect(queueMock.getRepeatableJobs).toHaveBeenCalled();
-      expect(queueMock.removeRepeatableByKey).toHaveBeenCalledWith('repeat-1');
-      expect(queueMock.removeRepeatableByKey).toHaveBeenCalledWith('repeat-2');
-      expect(queueMock.getJobs).toHaveBeenCalledWith(['waiting', 'delayed'], 0, 1000);
-      expect(waitingJobs[0].remove).toHaveBeenCalled();
-      expect(result).toEqual({
-        message: 'Queue cleared successfully',
-        removedCount: 3,
-      });
+      expect(monitorScheduleServiceMock.clearAll).toHaveBeenCalled();
+      expect(result).toEqual(expectedResult);
     });
   });
 
   describe('syncQueueJobs', () => {
-    it('should remove orphaned jobs and create missing jobs', async () => {
-      const activeMonitors = [
-        { id: 'a1b2c3', frequency: 60, url: 'https://a.com' },
-        { id: 'b2c3d4', frequency: 120, url: 'https://b.com' },
-      ];
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue(activeMonitors);
-      queueMock.getRepeatableJobs = jest.fn().mockResolvedValue([
-        { name: 'monitor:a1b2c3' },
-        { name: 'monitor:deadbeef' },
-      ]);
-      queueMock.remove = jest.fn().mockResolvedValue(true);
-      queueMock.add = jest.fn().mockResolvedValue({ id: 'job-created' });
+    it('delegates queue synchronization to the schedule service', async () => {
+      const expectedResult = { orphanedRemoved: 1, jobsCreated: 1 };
+      monitorScheduleServiceMock.synchronizeAll.mockResolvedValue(expectedResult);
 
       const result = await service.syncQueueJobs();
 
-      expect(queueMock.remove).toHaveBeenCalledWith('monitor:deadbeef');
-      expect(queueMock.add).toHaveBeenCalledWith(
-        'check-monitor',
-        { monitorId: 'b2c3d4' },
-        expect.objectContaining({
-          jobId: 'monitor:b2c3d4',
-          repeat: { every: 120000 },
-        }),
-      );
-      expect(result).toEqual({
-        orphanedRemoved: 1,
-        jobsCreated: 1,
-      });
+      expect(monitorScheduleServiceMock.synchronizeAll).toHaveBeenCalled();
+      expect(result).toEqual(expectedResult);
     });
   });
 
@@ -582,9 +561,9 @@ describe('UptimeService', () => {
     it('should throw NotFoundException when monitor does not exist', async () => {
       prismaMock.monitor.findUnique = jest.fn().mockResolvedValue(null);
 
-      await expect(
-        service['verifyOwnerMonitorByUserId']('non-existent', 'user-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service['verifyOwnerMonitorByUserId']('non-existent', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw UnauthorizedException when user does not own the monitor', async () => {
@@ -592,12 +571,12 @@ describe('UptimeService', () => {
         userId: 'different-user',
       });
 
-      await expect(
-        service['verifyOwnerMonitorByUserId']('monitor-1', 'user-1'),
-      ).rejects.toThrow(UnauthorizedException);
-      await expect(
-        service['verifyOwnerMonitorByUserId']('monitor-1', 'user-1'),
-      ).rejects.toThrow('You are not authorized to access this monitor');
+      await expect(service['verifyOwnerMonitorByUserId']('monitor-1', 'user-1')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      await expect(service['verifyOwnerMonitorByUserId']('monitor-1', 'user-1')).rejects.toThrow(
+        'You are not authorized to access this monitor',
+      );
     });
   });
 
@@ -609,9 +588,11 @@ describe('UptimeService', () => {
         .mockResolvedValueOnce(7) // up
         .mockResolvedValueOnce(2) // down
         .mockResolvedValueOnce(1); // pending
-      prismaMock.monitor.findMany = jest.fn().mockResolvedValue([
-        { id: 'm1', name: 'Down Monitor', url: 'https://down.com', lastCheck: new Date() },
-      ]);
+      prismaMock.monitor.findMany = jest
+        .fn()
+        .mockResolvedValue([
+          { id: 'm1', name: 'Down Monitor', url: 'https://down.com', lastCheck: new Date() },
+        ]);
 
       const result = await service.getStatsByUserId('user-1');
 
@@ -675,9 +656,9 @@ describe('UptimeService', () => {
         .mockResolvedValueOnce({ userId: 'user-1' })
         .mockResolvedValueOnce(null);
 
-      await expect(
-        service.findStatsLogsByUptimeId('non-existent', 'user-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.findStatsLogsByUptimeId('non-existent', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -756,7 +737,10 @@ describe('UptimeService', () => {
       prismaMock.incident.count = jest.fn().mockResolvedValue(45);
       prismaMock.$queryRaw = jest.fn().mockResolvedValue([{ downtime_ms: BigInt(0) }]);
 
-      const result = await service.getIncidents('monitor-1', 'user-1', { page: 2, limit: 10 } as any);
+      const result = await service.getIncidents('monitor-1', 'user-1', {
+        page: 2,
+        limit: 10,
+      } as any);
 
       expect(prismaMock.incident.findMany).toHaveBeenCalledWith({
         where: { monitorId: 'monitor-1' },
@@ -798,12 +782,22 @@ describe('UptimeService', () => {
     it('should return incidents grouped by monitor (from the GROUP BY summary query)', async () => {
       const byMonitorRows = [
         {
-          monitorId: 'm1', monitorName: 'Monitor 1', monitorUrl: 'https://m1.com', monitorStatus: 'UP',
-          incidentCount: 1, hasOngoingIncident: false, totalDowntimeMs: 60000,
+          monitorId: 'm1',
+          monitorName: 'Monitor 1',
+          monitorUrl: 'https://m1.com',
+          monitorStatus: 'UP',
+          incidentCount: 1,
+          hasOngoingIncident: false,
+          totalDowntimeMs: 60000,
         },
         {
-          monitorId: 'm2', monitorName: 'Monitor 2', monitorUrl: 'https://m2.com', monitorStatus: 'DOWN',
-          incidentCount: 1, hasOngoingIncident: true, totalDowntimeMs: 30000,
+          monitorId: 'm2',
+          monitorName: 'Monitor 2',
+          monitorUrl: 'https://m2.com',
+          monitorStatus: 'DOWN',
+          incidentCount: 1,
+          hasOngoingIncident: true,
+          totalDowntimeMs: 30000,
         },
       ];
       prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce(byMonitorRows);
@@ -857,17 +851,31 @@ describe('UptimeService', () => {
     it('should sort incidents by DURATION_LONGEST via a raw query with LIMIT/OFFSET (not a full findMany)', async () => {
       const durationRows = [
         {
-          id: 'i1', monitorId: 'm1', status: 'RESOLVED',
-          startedAt: new Date('2024-01-01T10:00:00Z'), endedAt: new Date('2024-01-01T10:02:00Z'),
-          affectedChecks: 1, firstError: null, lastError: null,
-          monitorName: 'M1', monitorUrl: 'https://m1.com', monitorStatus: 'UP',
+          id: 'i1',
+          monitorId: 'm1',
+          status: 'RESOLVED',
+          startedAt: new Date('2024-01-01T10:00:00Z'),
+          endedAt: new Date('2024-01-01T10:02:00Z'),
+          affectedChecks: 1,
+          firstError: null,
+          lastError: null,
+          monitorName: 'M1',
+          monitorUrl: 'https://m1.com',
+          monitorStatus: 'UP',
           durationMs: BigInt(120000),
         },
         {
-          id: 'i2', monitorId: 'm1', status: 'RESOLVED',
-          startedAt: new Date('2024-01-01T11:00:00Z'), endedAt: new Date('2024-01-01T11:10:00Z'),
-          affectedChecks: 1, firstError: null, lastError: null,
-          monitorName: 'M1', monitorUrl: 'https://m1.com', monitorStatus: 'UP',
+          id: 'i2',
+          monitorId: 'm1',
+          status: 'RESOLVED',
+          startedAt: new Date('2024-01-01T11:00:00Z'),
+          endedAt: new Date('2024-01-01T11:10:00Z'),
+          affectedChecks: 1,
+          firstError: null,
+          lastError: null,
+          monitorName: 'M1',
+          monitorUrl: 'https://m1.com',
+          monitorStatus: 'UP',
           durationMs: BigInt(600000),
         },
       ];
@@ -890,8 +898,24 @@ describe('UptimeService', () => {
 
     it('should sort byMonitor by incident count descending', async () => {
       const byMonitorRows = [
-        { monitorId: 'm1', monitorName: 'M1', monitorUrl: 'https://m1.com', monitorStatus: 'UP', incidentCount: 1, hasOngoingIncident: false, totalDowntimeMs: 0 },
-        { monitorId: 'm2', monitorName: 'M2', monitorUrl: 'https://m2.com', monitorStatus: 'UP', incidentCount: 2, hasOngoingIncident: false, totalDowntimeMs: 0 },
+        {
+          monitorId: 'm1',
+          monitorName: 'M1',
+          monitorUrl: 'https://m1.com',
+          monitorStatus: 'UP',
+          incidentCount: 1,
+          hasOngoingIncident: false,
+          totalDowntimeMs: 0,
+        },
+        {
+          monitorId: 'm2',
+          monitorName: 'M2',
+          monitorUrl: 'https://m2.com',
+          monitorStatus: 'UP',
+          incidentCount: 2,
+          hasOngoingIncident: false,
+          totalDowntimeMs: 0,
+        },
       ];
       prismaMock.$queryRaw = jest.fn().mockResolvedValueOnce(byMonitorRows);
       prismaMock.incident.count = jest.fn().mockResolvedValueOnce(3).mockResolvedValueOnce(0);

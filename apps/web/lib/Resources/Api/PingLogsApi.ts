@@ -24,8 +24,6 @@ export async function getPingLogById(id: string) {
     try {
          const { data } = await axiosInstance.get(`/ping-log/id/${id}`);
 
-         console.log(data);
-
          return data;
     } catch (error) {
          if (isAxiosError(error)) {
@@ -45,8 +43,6 @@ export async function findAllPingLogsById(params?: PingLogPaginationParams) {
                 params: params
             });
 
-            console.log(data);
-
             return data;
         } catch (error) {
         if (isAxiosError(error)) {
@@ -62,8 +58,6 @@ export async function findAllPingLogsById(params?: PingLogPaginationParams) {
 export async function deletePingLogById(id: string) {
     try {
         const { data } = await axiosInstance.delete(`/ping-log/${id}`);
-
-        console.log(data);
 
         return data;
     } catch (error) {

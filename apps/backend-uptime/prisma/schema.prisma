@@ -7,15 +7,24 @@ datasource db {
 }
 
 enum Status {
-  PENDING 
+  PENDING
   UP
   DOWN
+  DEGRADED
+  PAUSED
+  MAINTENANCE
+}
+
+enum MonitorType {
+  HTTP
+  SSL
+  HEARTBEAT
 }
 
 enum Role {
-   ADMIN
-   USER
-   GUEST
+  ADMIN
+  USER
+  GUEST
 }
 
 enum IncidentStatus {
@@ -23,36 +32,186 @@ enum IncidentStatus {
   RESOLVED
 }
 
+enum CheckRunStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum WorkspacePlan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum AggregateGranularity {
+  HOURLY
+  DAILY
+}
+
 model User {
-  id         String    @id @default(uuid())
-  cognitoSub String?   @unique @map("cognito_sub")
-  email      String    @unique
-  role       Role      @default(USER)
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  monitors   Monitor[]
+  id              String                @id @default(uuid())
+  cognitoSub      String?               @unique @map("cognito_sub")
+  email           String                @unique
+  role            Role                  @default(USER)
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  monitors        Monitor[]
+  ownedWorkspaces Workspace[]           @relation("WorkspaceOwner")
+  memberships     WorkspaceMembership[]
+  auditLogs       AuditLog[]
+  invitations     Invitation[]
 
   @@map("users")
 }
 
+model Workspace {
+  id          String                @id @default(uuid())
+  name        String
+  slug        String                @unique
+  plan        WorkspacePlan         @default(FREE)
+  ownerId     String                @map("owner_id")
+  owner       User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  memberships WorkspaceMembership[]
+  projects    Project[]
+  monitors    Monitor[]
+  incidents   Incident[]
+  invitations Invitation[]
+  apiKeys     ApiKey[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@map("workspaces")
+}
+
+model WorkspaceMembership {
+  id          String        @id @default(uuid())
+  workspaceId String        @map("workspace_id")
+  userId      String        @map("user_id")
+  role        WorkspaceRole @default(VIEWER)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId, role])
+  @@map("workspace_memberships")
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  slug        String
+  description String?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  monitors    Monitor[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, createdAt])
+  @@map("projects")
+}
+
+model Invitation {
+  id          String        @id @default(uuid())
+  workspaceId String        @map("workspace_id")
+  email       String
+  role        WorkspaceRole @default(VIEWER)
+  tokenHash   String        @unique @map("token_hash")
+  expiresAt   DateTime      @map("expires_at")
+  acceptedAt  DateTime?     @map("accepted_at")
+  invitedById String        @map("invited_by_id")
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User          @relation(fields: [invitedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([workspaceId, email, acceptedAt])
+  @@index([expiresAt])
+  @@map("workspace_invitations")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  prefix      String
+  keyHash     String    @unique @map("key_hash")
+  scopes      Json
+  expiresAt   DateTime? @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([workspaceId, revokedAt])
+  @@map("workspace_api_keys")
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  actorUserId String?   @map("actor_user_id")
+  action      String
+  entityType  String    @map("entity_type")
+  entityId    String    @map("entity_id")
+  metadata    Json?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, entityType, entityId])
+  @@map("audit_logs")
+}
+
 model Monitor {
-  id        String    @id @default(uuid())
-  userId    String    @map("user_id")
-  name      String
-  url       String
-  frequency Int       @default(60)
-  
-  isActive  Boolean   @default(true) @map("is_active")
-  nextCheck DateTime  @default(now()) @map("next_check")
-  lastCheck DateTime? @map("last_check")
-  status    Status    @default(PENDING)
+  id          String  @id @default(uuid())
+  userId      String  @map("user_id")
+  workspaceId String? @map("workspace_id")
+  projectId   String? @map("project_id")
+  name        String
+  url         String
+  frequency   Int     @default(60)
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  isActive                 Boolean     @default(true) @map("is_active")
+  nextCheck                DateTime    @default(now()) @map("next_check")
+  lastCheck                DateTime?   @map("last_check")
+  status                   Status      @default(PENDING)
+  monitorType              MonitorType @default(HTTP) @map("monitor_type")
+  config                   Json        @default("{}")
+  consecutiveFailures      Int         @default(0) @map("consecutive_failures")
+  consecutiveSuccesses     Int         @default(0) @map("consecutive_successes")
+  heartbeatSecretHash      String?     @unique @map("heartbeat_secret_hash")
+  heartbeatIntervalSeconds Int?        @map("heartbeat_interval_seconds")
+  heartbeatGraceSeconds    Int?        @map("heartbeat_grace_seconds")
+  heartbeatLastReceivedAt  DateTime?   @map("heartbeat_last_received_at")
+  maintenanceUntil         DateTime?   @map("maintenance_until")
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  logs      PingLog[]
-  incidents Incident[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace    Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  logs         PingLog[]
+  incidents    Incident[]
+  probeResults ProbeResult[]
+  maintenanceWindows MaintenanceWindow[]
+  aggregates MonitorAggregate[]
 
   // findAll() (uptime.service.ts) siempre filtra por userId y ordena por
   // createdAt; getStatsByUserId() siempre filtra por userId+isActive(+status).
@@ -60,25 +219,126 @@ model Monitor {
   // así que el índice viejo [isActive, nextCheck] no lo usa ninguna query.
   @@index([userId, createdAt])
   @@index([userId, isActive, status])
+  @@index([workspaceId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([monitorType, isActive])
   @@map("monitors")
+}
+
+model MaintenanceWindow {
+  id              String   @id @default(uuid())
+  monitorId       String   @map("monitor_id")
+  daysOfWeek      Int[]    @map("days_of_week")
+  startMinute     Int      @map("start_minute")
+  durationMinutes Int      @map("duration_minutes")
+  timezone        String   @default("UTC")
+  enabled         Boolean  @default(true)
+  monitor         Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([monitorId, enabled])
+  @@map("maintenance_windows")
+}
+
+model MonitorAggregate {
+  id              String             @id @default(uuid())
+  monitorId       String             @map("monitor_id")
+  granularity     AggregateGranularity
+  bucketStart     DateTime           @map("bucket_start")
+  checks          Int                @default(0)
+  successes       Int                @default(0)
+  failures        Int                @default(0)
+  totalDurationMs BigInt             @default(0) @map("total_duration_ms")
+  downtimeMs      BigInt             @default(0) @map("downtime_ms")
+  monitor         Monitor            @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  @@unique([monitorId, granularity, bucketStart])
+  @@index([monitorId, granularity, bucketStart(sort: Desc)])
+  @@map("monitor_aggregates")
 }
 
 model PingLog {
   id         String   @id @default(uuid())
   monitorId  String   @map("monitor_id")
+  runId      String?  @unique @map("run_id")
   statusCode Int      @map("status_code")
   durationMs Int      @map("duration_ms")
   error      String?
   timestamp  DateTime @default(now())
   success    Boolean  @default(false)
-  
-  monitor    Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  monitor   Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([monitorId, timestamp(sort: Desc)])
   @@index([monitorId, success])
   @@map("ping_logs")
+}
+
+// Durable execution record. `runId` is stable across BullMQ retries, so a
+// retry cannot create a second result for the same check execution.
+model CheckRun {
+  id          String         @id @default(uuid())
+  runId       String         @map("run_id")
+  region      String         @default("primary")
+  monitorId   String         @map("monitor_id")
+  status      CheckRunStatus @default(PROCESSING)
+  statusCode  Int            @map("status_code")
+  durationMs  Int            @default(0) @map("duration_ms")
+  success     Boolean        @default(false)
+  error       String?
+  startedAt   DateTime       @default(now()) @map("started_at")
+  completedAt DateTime?      @map("completed_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@unique([runId, region])
+  @@index([monitorId, startedAt(sort: Desc)])
+  @@index([status, startedAt])
+  @@map("check_runs")
+}
+
+model ProbeResult {
+  id         String   @id @default(uuid())
+  runId      String   @map("run_id")
+  region     String
+  monitorId  String   @map("monitor_id")
+  success    Boolean
+  statusCode Int      @map("status_code")
+  durationMs Int      @map("duration_ms")
+  error      String?
+  checkedAt  DateTime @default(now()) @map("checked_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, region])
+  @@index([monitorId, checkedAt(sort: Desc)])
+  @@map("probe_results")
+}
+
+// No tiene FK a Monitor a propÃ³sito: al borrar un monitor, el evento debe
+// sobrevivir para retirar su job repetitivo de BullMQ.
+model MonitorScheduleOutbox {
+  id          String    @id @default(uuid())
+  monitorId   String    @map("monitor_id")
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now()) @map("available_at")
+  lockedAt    DateTime? @map("locked_at")
+  lockedUntil DateTime? @map("locked_until")
+  lockedBy    String?   @map("locked_by")
+  processedAt DateTime? @map("processed_at")
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([processedAt, availableAt, lockedUntil])
+  @@index([monitorId])
+  @@map("monitor_schedule_outbox")
 }
 
 // Se escribe desde uptime.processor.ts en cada transición UP<->DOWN del
@@ -94,6 +354,7 @@ model Incident {
   // IN (...) sobre la lista de monitores. Los monitores no cambian de
   // dueño, así que este valor es efectivamente inmutable.
   userId          String         @map("user_id")
+  workspaceId     String?        @map("workspace_id")
   status          IncidentStatus @default(ONGOING)
   startedAt       DateTime       @map("started_at")
   endedAt         DateTime?      @map("ended_at")
@@ -102,7 +363,8 @@ model Incident {
   lastError       String?        @map("last_error")
   affectedChecks  Int            @default(1) @map("affected_checks")
 
-  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  monitor   Monitor    @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -110,6 +372,7 @@ model Incident {
   @@index([monitorId, startedAt(sort: Desc)])
   @@index([userId, startedAt(sort: Desc)])
   @@index([userId, status])
+  @@index([workspaceId, startedAt(sort: Desc)])
   @@map("incidents")
 }
 

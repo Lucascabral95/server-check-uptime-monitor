@@ -141,6 +141,14 @@ jobs:
         run: npm test
         working-directory: apps/backend-uptime
 
+      - name: Typecheck backend
+        run: npx tsc --noEmit
+        working-directory: apps/backend-uptime
+
+      - name: Run end-to-end tests
+        run: npm run test:e2e
+        working-directory: apps/backend-uptime
+
       - name: Build application
         run: npm run build
         working-directory: apps/backend-uptime

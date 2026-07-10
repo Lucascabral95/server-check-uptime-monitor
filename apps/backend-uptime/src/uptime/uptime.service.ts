@@ -1,19 +1,29 @@
 import {
-    BadRequestException,
-    Injectable,
-    InternalServerErrorException,
-    Logger,
-    NotFoundException,
-    UnauthorizedException,
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+  Optional,
 } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
 import { CreateUptimeDto } from './dto/create-uptime.dto';
 import { UpdateUptimeDto } from './dto/update-uptime.dto';
-import { PaginationUptimeDto, PaginatedResponseDto, SortBy, PaginationIncidentsDto, IncidentSortBy } from './dto';
+import {
+  PaginationUptimeDto,
+  PaginatedResponseDto,
+  SortBy,
+  PaginationIncidentsDto,
+  IncidentSortBy,
+} from './dto';
+import { SecretEnvelopeService } from './services/secret-envelope.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { handlePrismaError } from 'src/errors';
-import { Queue } from 'bullmq';
-import { Prisma, Incident } from '@prisma/client';
+import { MonitorType, Prisma, Incident } from '@prisma/client';
+import { AggregateGranularity } from '@prisma/client';
+import { createHash, randomBytes } from 'crypto';
+import { MonitorScheduleOutboxService } from './services/monitor-schedule-outbox.service';
+import { MonitorScheduleService } from './services/monitor-schedule.service';
 import {
   GetStatsUserDto,
   GetStatsLogsByUptimeIdDto,
@@ -24,496 +34,436 @@ import {
   GetIncidentsByUserIdDto,
   IncidentWithMonitorDto,
   MonitorIncidentSummaryDto,
-  } from './dto';
+} from './dto';
 
 @Injectable()
 export class UptimeService {
-    private readonly logger = new Logger(UptimeService.name);
+  private readonly logger = new Logger(UptimeService.name);
 
-    constructor(
-        private readonly prisma: PrismaService,
-        @InjectQueue('uptime-monitor') private readonly monitorQueue: Queue,
-    ) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly monitorScheduleOutboxService: MonitorScheduleOutboxService,
+    private readonly monitorScheduleService: MonitorScheduleService,
+    @Optional()
+    private readonly secretEnvelopeService: SecretEnvelopeService = new SecretEnvelopeService(),
+  ) {}
 
-    async create(createUptimeDto: CreateUptimeDto, userId: string) {
-        try {
-            const { name, url, frequency } = createUptimeDto;
-
-            const userExists = await this.prisma.user.findUnique({
-                where: { id: userId },
-                select: { id: true },
-            });
-
-            if (!userExists) {
-                throw new NotFoundException(
-                    `User with id '${userId}' does not exist. Please create a user first.`,
-                );
-            }
-
-            const now = new Date();
-            const nextCheck = new Date(now.getTime() + frequency * 1000);
-
-            const monitor = await this.prisma.monitor.create({
-                data: {
-                    userId,
-                    name,
-                    url,
-                    frequency,
-                    nextCheck,
-                    isActive: true,
-                },
-            });
-
-            await this.createMonitorJob(monitor.id, monitor.url, monitor.frequency);
-
-            this.logger.log(`Monitor created: ${name} (next check at ${nextCheck})`);
-
-            return monitor;
-        } catch (error) {
-            if (
-                error instanceof NotFoundException ||
-                error instanceof BadRequestException ||
-                error instanceof InternalServerErrorException
-            ) {
-                throw error;
-            }
-            throw handlePrismaError(error, 'Error creating uptime');
-        }
-    }
-
-    // `requestingUser` es SIEMPRE el usuario autenticado (req.user), nunca un
-    // valor de query string: los filtros `userId`/`email` del DTO solo se
-    // honran para ADMIN. Para USER/GUEST el resultado se fuerza a sus propios
-    // monitores, sin importar qué venga en la query — antes cualquiera podía
-    // pedir `?userId=<otro>` o `?email=<otro>` y enumerar monitores ajenos.
-    async findAll(
-        paginationDto: PaginationUptimeDto = {},
-        requestingUser: { dbUserId: string; role: string },
-    ): Promise<PaginatedResponseDto<any>> {
-        try {
-            const { page = 1,
-              limit = 10,
-              userId,
-              status,
-              sortBy = SortBy.RECENT,
-              search,
-              includeInactive = false,
-              email,
-             } = paginationDto;
-            const skip = (page - 1) * limit;
-
-            const where: any = {};
-            const isAdmin = requestingUser.role === 'ADMIN';
-
-            if (isAdmin) {
-                if (userId) {
-                    where.userId = userId;
-                }
-                if (email) {
-                    where.user = { email };
-                }
-            } else {
-                where.userId = requestingUser.dbUserId;
-            }
-
-            if (status) {
-                where.status = status;
-            }
-
-            if (!includeInactive) {
-                where.isActive = true;
-            }
-
-            if (search) {
-                where.OR = [
-                    { name: { contains: search, mode: 'insensitive' } },
-                    { url: { contains: search, mode: 'insensitive' } },
-                ];
-            }
-
-            const orderByMap: Record<SortBy, any> = {
-                [SortBy.RECENT]: { createdAt: 'desc' },
-                [SortBy.OLDEST]: { createdAt: 'asc' },
-                [SortBy.NAME_ASC]: { name: 'asc' },
-                [SortBy.NAME_DESC]: { name: 'desc' },
-                [SortBy.STATUS_DOWN]: { createdAt: 'desc' }, 
-                [SortBy.STATUS_UP]: { createdAt: 'desc' }, 
-            };
-
-            const [data, totalItems] = await Promise.all([
-                this.prisma.monitor.findMany({
-                    where,
-                    skip,
-                    take: limit,
-                    orderBy: orderByMap[sortBy],
-                }),
-                this.prisma.monitor.count({ where }),
-            ]);
-
-            if (sortBy === SortBy.STATUS_DOWN || sortBy === SortBy.STATUS_UP) {
-                const statusPriority: Record<string, number> = {};
-
-                if (sortBy === SortBy.STATUS_DOWN) {
-                    statusPriority['DOWN'] = 0;
-                    statusPriority['UP'] = 1;
-                    statusPriority['PENDING'] = 2;
-                } else {
-                    statusPriority['UP'] = 0;
-                    statusPriority['DOWN'] = 1;
-                    statusPriority['PENDING'] = 2;
-                }
-
-                (data as any[]).sort((a, b) => {
-                    const priorityA = statusPriority[a.status] ?? 2;
-                    const priorityB = statusPriority[b.status] ?? 2;
-                    return priorityA - priorityB;
-                });
-            }
-
-            const totalPages = Math.ceil(totalItems / limit);
-
-            return {
-                data,
-                pagination: {
-                    currentPage: page,
-                    totalPages,
-                    nextPage: page < totalPages ? page + 1 : null,
-                    prevPage: page > 1 ? page - 1 : null,
-                    totalItems,
-                    itemsPerPage: limit,
-                },
-            };
-        } catch (error) {
-            if (
-                error instanceof NotFoundException ||
-                error instanceof BadRequestException ||
-                error instanceof InternalServerErrorException
-            ) {
-                throw error;
-            }
-            throw handlePrismaError(error, 'Error fetching monitors');
-        }
-    }
-
-    async findOne(id: string, userId?: string) {
-        await this.verifyOwnerMonitorByUserId(id, userId);
-
-        try {
-            const monitor = await this.prisma.monitor.findUnique({
-                where: {
-                    id,
-                },
-            });
-
-            if (!monitor) {
-                throw new NotFoundException('Monitor not found');
-            }
-
-            return monitor;
-        } catch (error) {
-            if (
-                error instanceof NotFoundException ||
-                error instanceof BadRequestException ||
-                error instanceof InternalServerErrorException
-            ) {
-                throw error;
-            }
-            throw handlePrismaError(error, 'Error creating uptime');
-        }
-    }
-
-    async update(id: string, updateUptimeDto: UpdateUptimeDto, userId: string) {
-        await this.findOne(id, userId);
-
-        try {
-            const monitorUpdated = await this.prisma.monitor.update({
-                where: {
-                    id,
-                    userId,
-                },
-                data: {
-                    ...updateUptimeDto,
-                },
-            });
-
-            if (updateUptimeDto.frequency || updateUptimeDto.isActive !== undefined) {
-                await this.updateMonitorJob(
-                    id,
-                    monitorUpdated.url,
-                    monitorUpdated.frequency,
-                    monitorUpdated.isActive ?? true,
-                );
-            }
-
-            // Si se desactiva el monitor, el processor va a hacer early-return
-            // en cada check futuro (isActive check en uptime.processor.ts) y
-            // JAMÁS va a correr la transición DOWN->UP que cierra un incidente.
-            // Sin esto, un incidente ONGOING queda abierto para siempre.
-            if (updateUptimeDto.isActive === false) {
-                await this.prisma.incident.updateMany({
-                    where: { monitorId: id, status: 'ONGOING' },
-                    data: { status: 'RESOLVED', endedAt: new Date() },
-                });
-            }
-
-            return {
-                message: `Monitor ${monitorUpdated.id} updated successfully`,
-                monitor: monitorUpdated,
-            };
-        } catch (error) {
-            if (
-                error instanceof NotFoundException ||
-                error instanceof BadRequestException ||
-                error instanceof InternalServerErrorException
-            ) {
-                throw error;
-            }
-            throw handlePrismaError(error, 'Error creating uptime');
-        }
-    }
-
-    async remove(id: string, userId: string) {
-        await this.findOne(id, userId);
-
-        try {
-            await this.removeMonitorJob(id);
-
-            await this.prisma.monitor.delete({
-                where: {
-                    id,
-                },
-            });
-
-            return 'Monitor deleted successfully';
-        } catch (error) {
-            if (
-                error instanceof NotFoundException ||
-                error instanceof BadRequestException ||
-                error instanceof InternalServerErrorException
-            ) {
-                throw error;
-            }
-            throw handlePrismaError(error, 'Error creating uptime');
-        }
-    }
-
-    // Verificar si el monitor pertenece al usuario (por userId) que lo creo
-    async verifyOwnerMonitorByUserId(monitorId: string, userId: string): Promise<void> {
+  async create(
+    createUptimeDto: CreateUptimeDto,
+    userId: string,
+    workspaceId?: string,
+    projectId?: string,
+  ) {
     try {
-        const monitor = await this.prisma.monitor.findUnique({
-            where: { 
-                id: monitorId 
-            },
-            select: {
-                userId: true,
-            },
+      const {
+        name,
+        url,
+        frequency,
+        monitorType = MonitorType.HTTP,
+        config = {},
+        heartbeatIntervalSeconds,
+        heartbeatGraceSeconds,
+        maintenanceWindows = [],
+      } = createUptimeDto;
+      const heartbeatSecret =
+        monitorType === MonitorType.HEARTBEAT ? randomBytes(32).toString('base64url') : undefined;
+
+      const userExists = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+
+      if (!userExists) {
+        throw new NotFoundException(
+          `User with id '${userId}' does not exist. Please create a user first.`,
+        );
+      }
+
+      const now = new Date();
+      const nextCheck = new Date(now.getTime() + frequency * 1000);
+
+      if (workspaceId) {
+        const membership = await this.prisma.workspaceMembership.findUnique({
+          where: { workspaceId_userId: { workspaceId, userId } },
+          select: { id: true },
+        });
+        if (!membership) throw new UnauthorizedException('Workspace membership required');
+        if (projectId) {
+          const project = await this.prisma.project.findFirst({
+            where: { id: projectId, workspaceId },
+            select: { id: true },
+          });
+          if (!project) throw new NotFoundException('Project not found in workspace');
+        }
+      }
+
+      const monitor = await this.prisma.$transaction(async transaction => {
+        const createdMonitor = await transaction.monitor.create({
+          data: {
+            userId,
+            name,
+            url,
+            frequency,
+            nextCheck,
+            isActive: true,
+            monitorType,
+            config: this.secretEnvelopeService.protectConfig(config) as Prisma.InputJsonValue,
+            ...(heartbeatSecret
+              ? {
+                  heartbeatSecretHash: createHash('sha256').update(heartbeatSecret).digest('hex'),
+                  heartbeatIntervalSeconds: heartbeatIntervalSeconds ?? frequency,
+                  heartbeatGraceSeconds: heartbeatGraceSeconds ?? frequency,
+                }
+              : {}),
+            ...(workspaceId ? { workspaceId } : {}),
+            ...(projectId ? { projectId } : {}),
+          },
         });
 
-        if (!monitor) {
-            throw new NotFoundException(`Monitor with id '${monitorId}' not found`);
+        if (maintenanceWindows.length) {
+          await transaction.maintenanceWindow.createMany({
+            data: maintenanceWindows.map(window => ({ monitorId: createdMonitor.id, ...window })),
+          });
         }
 
-        if (monitor.userId !== userId) {
-            throw new UnauthorizedException(
-                'You are not authorized to access this monitor',
-            );
-        }
+        await this.monitorScheduleOutboxService.enqueue(transaction, createdMonitor.id);
 
+        return createdMonitor;
+      });
+
+      this.logger.log(`Monitor created: ${name} (next check at ${nextCheck})`);
+
+      return heartbeatSecret ? { ...monitor, heartbeatSecret } : monitor;
     } catch (error) {
-        if (
-            error instanceof NotFoundException ||
-            error instanceof UnauthorizedException ||
-            error instanceof BadRequestException ||
-            error instanceof InternalServerErrorException
-        ) {
-            throw error;
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error creating uptime');
+    }
+  }
+
+  // `requestingUser` es SIEMPRE el usuario autenticado (req.user), nunca un
+  // valor de query string: los filtros `userId`/`email` del DTO solo se
+  // honran para ADMIN. Para USER/GUEST el resultado se fuerza a sus propios
+  // monitores, sin importar qué venga en la query — antes cualquiera podía
+  // pedir `?userId=<otro>` o `?email=<otro>` y enumerar monitores ajenos.
+  async findAll(
+    paginationDto: PaginationUptimeDto = {},
+    requestingUser: { dbUserId: string; role: string },
+    workspaceId?: string,
+  ): Promise<PaginatedResponseDto<any>> {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        userId,
+        status,
+        sortBy = SortBy.RECENT,
+        search,
+        includeInactive = false,
+        email,
+      } = paginationDto;
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      const isAdmin = requestingUser.role === 'ADMIN';
+
+      if (workspaceId) {
+        where.workspaceId = workspaceId;
+      } else if (isAdmin) {
+        if (userId) {
+          where.userId = userId;
         }
-        throw handlePrismaError(error, 'Error verifying monitor ownership');
-    }
-}
+        if (email) {
+          where.user = { email };
+        }
+      } else {
+        where.userId = requestingUser.dbUserId;
+      }
 
-    // Crea un job recurrente individual para un monitor específico.
-    private async createMonitorJob(monitorId: string, _url: string, frequency: number) {
-        const jobId = `monitor:${monitorId}`;
+      if (status) {
+        where.status = status;
+      }
 
-        await this.monitorQueue.add(
-            'check-monitor',
-            {
-                monitorId,
-            },
-            {
-                jobId, // ID único para evitar duplicados
-                repeat: {
-                    every: frequency * 1000, // Frecuencia del monitor en ms
-                },
-            },
-        );
+      if (!includeInactive) {
+        where.isActive = true;
+      }
 
-        this.logger.log(
-            `Monitor job created: ${monitorId} (frequency: ${frequency}s)`,
-        );
-    }
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { url: { contains: search, mode: 'insensitive' } },
+        ];
+      }
 
-    // Actualiza el job recurrente de un monitor cuando cambia frecuencia o estado.
-    private async updateMonitorJob(
-        monitorId: string,
-        _url: string,
-        frequency: number,
-        isActive: boolean,
-    ) {
-        const jobId = `monitor:${monitorId}`;
+      const orderByMap: Record<SortBy, any> = {
+        [SortBy.RECENT]: { createdAt: 'desc' },
+        [SortBy.OLDEST]: { createdAt: 'asc' },
+        [SortBy.NAME_ASC]: { name: 'asc' },
+        [SortBy.NAME_DESC]: { name: 'desc' },
+        [SortBy.STATUS_DOWN]: { createdAt: 'desc' },
+        [SortBy.STATUS_UP]: { createdAt: 'desc' },
+      };
 
-        // Eliminar el job anterior
-        await this.monitorQueue.remove(jobId);
+      const [data, totalItems] = await Promise.all([
+        this.prisma.monitor.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: orderByMap[sortBy],
+        }),
+        this.prisma.monitor.count({ where }),
+      ]);
 
-        // Si el monitor sigue activo, crear nuevo job con la frecuencia actualizada
-        if (isActive) {
-            await this.createMonitorJob(monitorId, '', frequency);
+      if (sortBy === SortBy.STATUS_DOWN || sortBy === SortBy.STATUS_UP) {
+        const statusPriority: Record<string, number> = {};
+
+        if (sortBy === SortBy.STATUS_DOWN) {
+          statusPriority['DOWN'] = 0;
+          statusPriority['UP'] = 1;
+          statusPriority['PENDING'] = 2;
         } else {
-            this.logger.log(`Monitor job removed: ${monitorId} (monitor inactive)`);
+          statusPriority['UP'] = 0;
+          statusPriority['DOWN'] = 1;
+          statusPriority['PENDING'] = 2;
         }
+
+        (data as any[]).sort((a, b) => {
+          const priorityA = statusPriority[a.status] ?? 2;
+          const priorityB = statusPriority[b.status] ?? 2;
+          return priorityA - priorityB;
+        });
+      }
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return {
+        data,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          nextPage: page < totalPages ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null,
+          totalItems,
+          itemsPerPage: limit,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error fetching monitors');
     }
+  }
 
-    // Elimina el job recurrente de un monitor.
-    private async removeMonitorJob(monitorId: string): Promise<void> {
-        const jobId = `monitor:${monitorId}`;
+  async findOne(id: string, userId?: string) {
+    await this.verifyOwnerMonitorByUserId(id, userId);
 
-        try {
-            await this.monitorQueue.remove(jobId);
-            this.logger.log(`Monitor job removed: ${monitorId}`);
-        } catch (error) {
-            this.logger.warn(`Monitor job not found for removal: ${monitorId}`);
-        }
+    try {
+      const monitor = await this.prisma.monitor.findUnique({
+        where: {
+          id,
+        },
+      });
+
+      if (!monitor) {
+        throw new NotFoundException('Monitor not found');
+      }
+
+      return monitor;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error creating uptime');
     }
+  }
 
-    // Limpia todos los jobs de la cola (útil después de un db:reset o db:seed)
-    async clearAllQueueJobs(): Promise<{ message: string; removedCount: number }> {
-        try {
-            // Obtener todos los jobs repetitivos de la cola
-            const repeatJobs = await this.monitorQueue.getRepeatableJobs();
+  async update(id: string, updateUptimeDto: UpdateUptimeDto, userId: string) {
+    await this.findOne(id, userId);
 
-            // Eliminar cada job repetitivo
-            for (const job of repeatJobs) {
-                await this.monitorQueue.removeRepeatableByKey(job.key);
-            }
-
-            // También limpiar jobs normales (no repetitivos) que puedan estar en espera
-            const waitingJobs = await this.monitorQueue.getJobs(['waiting', 'delayed'], 0, 1000);
-            for (const job of waitingJobs) {
-                await job.remove();
-            }
-
-            const removedCount = repeatJobs.length + waitingJobs.length;
-            this.logger.log(`Cleared ${removedCount} jobs from queue`);
-
-            return {
-                message: 'Queue cleared successfully',
-                removedCount,
-            };
-        } catch (error) {
-            this.logger.error(`Error clearing queue: ${error.message}`);
-            throw new InternalServerErrorException('Failed to clear queue');
-        }
-    }
-
-    // Sincroniza los jobs de la cola con los monitores activos en la base de datos
-    // Elimina jobs huérfanos y crea jobs faltantes
-    async syncQueueJobs(): Promise<{ orphanedRemoved: number; jobsCreated: number }> {
-        try {
-            // Obtener todos los monitores activos de la BD
-            const activeMonitors = await this.prisma.monitor.findMany({
-                where: { isActive: true },
-                select: { id: true, frequency: true, url: true },
-            });
-
-            // Obtener todos los jobs repetitivos de la cola
-            const repeatJobs = await this.monitorQueue.getRepeatableJobs();
-
-            // Extraer monitorIds de los jobs en la cola
-            const jobMonitorIds = new Set(
-                repeatJobs
-                    .map(job => {
-                        const match = job.name.match(/monitor:([a-f0-9-]+)/);
-                        return match ? match[1] : null;
-                    })
-                    .filter((id): id is string => id !== null)
-            );
-
-            // Encontrar jobs huérfanos (jobs en cola sin monitor en BD)
-            const activeMonitorIds = new Set(activeMonitors.map(m => m.id));
-            const orphanedIds = Array.from(jobMonitorIds).filter(id => !activeMonitorIds.has(id));
-
-            // Eliminar jobs huérfanos
-            for (const jobId of orphanedIds) {
-                await this.removeMonitorJob(jobId);
-            }
-
-            // Encontrar monitores sin job y crearlos
-            let jobsCreated = 0;
-            for (const monitor of activeMonitors) {
-                if (!jobMonitorIds.has(monitor.id)) {
-                    await this.createMonitorJob(monitor.id, monitor.url, monitor.frequency);
-                    jobsCreated++;
+    try {
+      const { config, maintenanceUntil, maintenanceWindows, ...updateData } = updateUptimeDto;
+      const monitorUpdated = await this.prisma.$transaction(async transaction => {
+        const updatedMonitor = await transaction.monitor.update({
+          where: {
+            id,
+            userId,
+          },
+          data: {
+            ...updateData,
+            ...(config !== undefined
+              ? {
+                  config: this.secretEnvelopeService.protectConfig(config) as Prisma.InputJsonValue,
                 }
-            }
+              : {}),
+            ...(maintenanceUntil !== undefined
+              ? { maintenanceUntil: maintenanceUntil ? new Date(maintenanceUntil) : null }
+              : {}),
+          },
+        });
 
-            this.logger.log(`Queue sync: ${orphanedIds.length} orphaned jobs removed, ${jobsCreated} jobs created`);
-
-            return {
-                orphanedRemoved: orphanedIds.length,
-                jobsCreated,
-            };
-        } catch (error) {
-            this.logger.error(`Error syncing queue jobs: ${error.message}`);
-            throw new InternalServerErrorException('Failed to sync queue jobs');
+        if (maintenanceWindows !== undefined) {
+          await transaction.maintenanceWindow.deleteMany({ where: { monitorId: id } });
+          if (maintenanceWindows.length) {
+            await transaction.maintenanceWindow.createMany({
+              data: maintenanceWindows.map(window => ({ monitorId: id, ...window })),
+            });
+          }
         }
-    }
 
-    ////
-    async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
+        if (updateUptimeDto.frequency !== undefined || updateUptimeDto.isActive !== undefined) {
+          await this.monitorScheduleOutboxService.enqueue(transaction, id);
+        }
+
+        // Si se desactiva el monitor, el processor va a hacer early-return
+        // en cada check futuro (isActive check en uptime.processor.ts) y
+        // JAMÁS va a correr la transición DOWN->UP que cierra un incidente.
+        // Sin esto, un incidente ONGOING queda abierto para siempre.
+        if (updateUptimeDto.isActive === false) {
+          await transaction.incident.updateMany({
+            where: { monitorId: id, status: 'ONGOING' },
+            data: { status: 'RESOLVED', endedAt: new Date() },
+          });
+        }
+
+        return updatedMonitor;
+      });
+
+      return {
+        message: `Monitor ${monitorUpdated.id} updated successfully`,
+        monitor: monitorUpdated,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error creating uptime');
+    }
+  }
+
+  async remove(id: string, userId: string) {
+    await this.findOne(id, userId);
+
+    try {
+      await this.prisma.$transaction(async transaction => {
+        await this.monitorScheduleOutboxService.enqueue(transaction, id);
+        await transaction.monitor.delete({
+          where: {
+            id,
+          },
+        });
+      });
+
+      return 'Monitor deleted successfully';
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error creating uptime');
+    }
+  }
+
+  // Verificar si el monitor pertenece al usuario (por userId) que lo creo
+  async verifyOwnerMonitorByUserId(monitorId: string, userId: string): Promise<void> {
+    try {
+      const monitor = await this.prisma.monitor.findUnique({
+        where: {
+          id: monitorId,
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+      if (!monitor) {
+        throw new NotFoundException(`Monitor with id '${monitorId}' not found`);
+      }
+
+      if (monitor.userId !== userId) {
+        throw new UnauthorizedException('You are not authorized to access this monitor');
+      }
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      throw handlePrismaError(error, 'Error verifying monitor ownership');
+    }
+  }
+
+  async clearAllQueueJobs(): Promise<{ message: string; removedCount: number }> {
+    return this.monitorScheduleService.clearAll();
+  }
+
+  async syncQueueJobs(): Promise<{ orphanedRemoved: number; jobsCreated: number }> {
+    return this.monitorScheduleService.synchronizeAll();
+  }
+
+  ////
+  async getStatsByUserId(userId: string): Promise<GetStatsUserDto> {
     try {
       const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-      const [
-        totalMonitors,
-        upCount,
-        downCount,
-        pendingCount,
-        monitorsDownLast24h,
-      ] = await Promise.all([
-        this.prisma.monitor.count({
-          where: { userId, isActive: true },
-        }),
+      const [totalMonitors, upCount, downCount, pendingCount, monitorsDownLast24h] =
+        await Promise.all([
+          this.prisma.monitor.count({
+            where: { userId, isActive: true },
+          }),
 
-        this.prisma.monitor.count({
-          where: { userId, status: 'UP', isActive: true },
-        }),
+          this.prisma.monitor.count({
+            where: { userId, status: 'UP', isActive: true },
+          }),
 
-        this.prisma.monitor.count({
-          where: { userId, status: 'DOWN', isActive: true },
-        }),
+          this.prisma.monitor.count({
+            where: { userId, status: 'DOWN', isActive: true },
+          }),
 
-        this.prisma.monitor.count({
-          where: { userId, status: 'PENDING', isActive: true },
-        }),
+          this.prisma.monitor.count({
+            where: { userId, status: 'PENDING', isActive: true },
+          }),
 
-        this.prisma.monitor.findMany({
-          where: {
-            userId,
-            status: 'DOWN',
-            isActive: true,
-            lastCheck: {
-              gte: last24Hours,
+          this.prisma.monitor.findMany({
+            where: {
+              userId,
+              status: 'DOWN',
+              isActive: true,
+              lastCheck: {
+                gte: last24Hours,
+              },
             },
-          },
-          select: {
-            id: true,
-            name: true,
-            url: true,
-            lastCheck: true,
-          },
-        }),
-      ]);
+            select: {
+              id: true,
+              name: true,
+              url: true,
+              lastCheck: true,
+            },
+          }),
+        ]);
 
       return {
         totalMonitors,
@@ -535,6 +485,31 @@ export class UptimeService {
 
       throw handlePrismaError(error, 'Error getting monitor stats by user id');
     }
+  }
+
+  async getAggregates(
+    monitorId: string,
+    userId: string,
+    granularity: AggregateGranularity = AggregateGranularity.HOURLY,
+  ) {
+    await this.verifyOwnerMonitorByUserId(monitorId, userId);
+    const aggregates = await this.prisma.monitorAggregate.findMany({
+      where: {
+        monitorId,
+        granularity,
+        bucketStart: {
+          gte: new Date(
+            Date.now() - (granularity === AggregateGranularity.DAILY ? 90 : 7) * 86400000,
+          ),
+        },
+      },
+      orderBy: { bucketStart: 'asc' },
+    });
+    return aggregates.map(aggregate => ({
+      ...aggregate,
+      totalDurationMs: aggregate.totalDurationMs.toString(),
+      downtimeMs: aggregate.downtimeMs.toString(),
+    }));
   }
 
   /// Obtener estadísticas de logs avanzadas de un monitor por uptimeId
@@ -594,10 +569,7 @@ export class UptimeService {
       ) {
         throw error;
       }
-      throw handlePrismaError(
-        error,
-        'Error getting stats logs by uptime id',
-      );
+      throw handlePrismaError(error, 'Error getting stats logs by uptime id');
     }
   }
 
@@ -619,15 +591,14 @@ export class UptimeService {
         _count: true,
       });
 
-      const successEntry = groupedLogs.find((entry) => entry.success === true);
-      const failureEntry = groupedLogs.find((entry) => entry.success === false);
+      const successEntry = groupedLogs.find(entry => entry.success === true);
+      const failureEntry = groupedLogs.find(entry => entry.success === false);
 
       const successCount = successEntry?._count ?? 0;
       const failureCount = failureEntry?._count ?? 0;
       const totalCount = successCount + failureCount;
 
-      const healthPercentage =
-        totalCount > 0 ? (successCount / totalCount) * 100 : 0;
+      const healthPercentage = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
 
       const downtimeMs = await this.calculateDowntime(monitorId, sinceDate, toDate);
       const periodMs = toDate.getTime() - sinceDate.getTime();
@@ -690,9 +661,7 @@ export class UptimeService {
 
       return Number(rows[0]?.downtime_ms ?? 0);
     } catch (error) {
-      this.logger.error(
-        `Error calculating downtime for monitor ${monitorId}: ${error.message}`,
-      );
+      this.logger.error(`Error calculating downtime for monitor ${monitorId}: ${error.message}`);
       return 0;
     }
   }
@@ -761,7 +730,7 @@ export class UptimeService {
 
       return {
         monitorId,
-        incidents: incidents.map((incident) => this.toIncidentDto(incident, now)),
+        incidents: incidents.map(incident => this.toIncidentDto(incident, now)),
         totalIncidents,
         totalDowntime: this.formatDuration(totalDowntimeMs),
         totalDowntimeMs,
@@ -791,7 +760,10 @@ export class UptimeService {
   // (o un raw query cuando se ordena por duración, ver más abajo), y el
   // resumen por monitor sale de un GROUP BY. Ninguno de los dos escala con la
   // cantidad de ping_logs históricos.
-  async getIncidentsByUserId(userId: string, paginationDto?: PaginationIncidentsDto): Promise<GetIncidentsByUserIdDto> {
+  async getIncidentsByUserId(
+    userId: string,
+    paginationDto?: PaginationIncidentsDto,
+  ): Promise<GetIncidentsByUserIdDto> {
     try {
       const { page = 1, limit = 20, search, sortBy = IncidentSortBy.RECENT } = paginationDto || {};
       const skip = (page - 1) * limit;
@@ -806,7 +778,7 @@ export class UptimeService {
 
       byMonitor.sort((a, b) => b.incidentCount - a.incidentCount);
       const totalDowntimeMs = byMonitor.reduce((sum, m) => sum + m.totalDowntimeMs, 0);
-      const monitorsDown = byMonitor.filter((m) => m.monitorStatus === 'DOWN').length;
+      const monitorsDown = byMonitor.filter(m => m.monitorStatus === 'DOWN').length;
 
       return {
         userId,
@@ -895,7 +867,7 @@ export class UptimeService {
       GROUP BY m.id, m.name, m.url, m.status
     `);
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       monitorId: row.monitorId,
       monitorName: row.monitorName,
       monitorUrl: row.monitorUrl,
@@ -956,7 +928,7 @@ export class UptimeService {
       include: { monitor: { select: { name: true, url: true, status: true } } },
     });
 
-    return incidents.map((incident) => ({
+    return incidents.map(incident => ({
       ...this.toIncidentDto(incident, now),
       monitorName: incident.monitor.name,
       monitorUrl: incident.monitor.url,
@@ -1008,7 +980,7 @@ export class UptimeService {
       LIMIT ${limit} OFFSET ${skip}
     `);
 
-    return rows.map((row) => ({
+    return rows.map(row => ({
       id: row.id,
       monitorId: row.monitorId,
       monitorName: row.monitorName,

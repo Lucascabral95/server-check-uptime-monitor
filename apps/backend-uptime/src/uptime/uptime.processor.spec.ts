@@ -4,7 +4,9 @@ import { Job } from 'bullmq';
 import { UptimeProcessor } from './uptime.processor';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PingLogBufferService } from 'src/ping-log/ping-log-buffer.service';
+import { CheckRunService } from './services/check-run.service';
 import { HttpPoolService } from './services/http-pool.service';
+import { MonitorCheckService } from './services/monitor-check.service';
 import { EmailService } from 'src/email/email.service';
 import { QUEUES_NAME } from 'src/bullmq/bullmq.module';
 
@@ -25,17 +27,25 @@ describe('UptimeProcessor', () => {
     monitor: {
       findUnique: jest.fn(),
     },
-    $transaction: jest.fn((callback: (tx: typeof txMock) => Promise<unknown>) =>
-      callback(txMock),
-    ),
+    $transaction: jest.fn((callback: (tx: typeof txMock) => Promise<unknown>) => callback(txMock)),
   };
 
   const pingLogBufferServiceMock = {
     add: jest.fn(),
   };
 
+  const checkRunServiceMock = {
+    begin: jest.fn(),
+    recordFailure: jest.fn(),
+    persistSuccess: jest.fn(),
+  };
+
   const httpPoolServiceMock = {
     checkUrl: jest.fn(),
+  };
+
+  const monitorCheckServiceMock = {
+    execute: jest.fn(),
   };
 
   const emailServiceMock = {
@@ -54,6 +64,8 @@ describe('UptimeProcessor', () => {
     frequency: 60,
     isActive: true,
     status: 'UP',
+    consecutiveFailures: 1,
+    consecutiveSuccesses: 1,
     user: {
       email: 'user@example.com',
     },
@@ -71,18 +83,21 @@ describe('UptimeProcessor', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    prismaMock.$transaction.mockImplementation((callback: (tx: typeof txMock) => Promise<unknown>) =>
-      callback(txMock),
+    prismaMock.$transaction.mockImplementation(
+      (callback: (tx: typeof txMock) => Promise<unknown>) => callback(txMock),
     );
     // Por defecto, el CAS "gana" (nadie más tocó el monitor primero).
     txMock.monitor.updateMany.mockResolvedValue({ count: 1 });
+    checkRunServiceMock.begin.mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UptimeProcessor,
         { provide: PrismaService, useValue: prismaMock },
         { provide: PingLogBufferService, useValue: pingLogBufferServiceMock },
+        { provide: CheckRunService, useValue: checkRunServiceMock },
         { provide: HttpPoolService, useValue: httpPoolServiceMock },
+        { provide: MonitorCheckService, useValue: monitorCheckServiceMock },
         { provide: EmailService, useValue: emailServiceMock },
         {
           provide: getQueueToken(QUEUES_NAME.UPTIME_MONITOR_DLQ),
@@ -136,7 +151,7 @@ describe('UptimeProcessor', () => {
       await processor.process(job);
 
       expect(job.remove).toHaveBeenCalled();
-      expect(httpPoolServiceMock.checkUrl).not.toHaveBeenCalled();
+      expect(monitorCheckServiceMock.execute).not.toHaveBeenCalled();
     });
 
     it('should skip inactive monitor', async () => {
@@ -148,8 +163,8 @@ describe('UptimeProcessor', () => {
 
       await processor.process(job);
 
-      expect(httpPoolServiceMock.checkUrl).not.toHaveBeenCalled();
-      expect(pingLogBufferServiceMock.add).not.toHaveBeenCalled();
+      expect(monitorCheckServiceMock.execute).not.toHaveBeenCalled();
+      expect(checkRunServiceMock.begin).not.toHaveBeenCalled();
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
 
@@ -157,15 +172,14 @@ describe('UptimeProcessor', () => {
       const job = makeJob({ attemptsMade: 3 });
       const error = new Error('timeout');
       prismaMock.monitor.findUnique.mockResolvedValue(baseMonitor);
-      httpPoolServiceMock.checkUrl.mockRejectedValue(error);
+      monitorCheckServiceMock.execute.mockRejectedValue(error);
 
       await expect(processor.process(job)).rejects.toThrow('timeout');
 
-      expect(httpPoolServiceMock.checkUrl).toHaveBeenCalledWith(
-        baseMonitor.url,
-        10000,
-      );
-      expect(pingLogBufferServiceMock.add).toHaveBeenCalledWith({
+      expect(monitorCheckServiceMock.execute).toHaveBeenCalled();
+      expect(checkRunServiceMock.recordFailure).toHaveBeenCalledWith({
+        runId: String(job.id),
+        region: 'primary',
         monitorId: baseMonitor.id,
         statusCode: 0,
         durationMs: 0,
@@ -181,7 +195,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'UP',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: false,
         statusCode: 500,
         durationMs: 250,
@@ -190,7 +204,9 @@ describe('UptimeProcessor', () => {
 
       await processor.process(job);
 
-      expect(pingLogBufferServiceMock.add).toHaveBeenCalledWith({
+      expect(checkRunServiceMock.persistSuccess).toHaveBeenCalledWith(expect.anything(), {
+        runId: String(job.id),
+        region: 'primary',
         monitorId: baseMonitor.id,
         statusCode: 500,
         durationMs: 250,
@@ -199,7 +215,12 @@ describe('UptimeProcessor', () => {
       });
       expect(txMock.monitor.updateMany).toHaveBeenCalledWith({
         where: { id: baseMonitor.id, status: 'UP' },
-        data: { status: 'DOWN', lastCheck: expect.any(Date) },
+        data: {
+          status: 'DOWN',
+          lastCheck: expect.any(Date),
+          consecutiveFailures: 2,
+          consecutiveSuccesses: 0,
+        },
       });
       expect(txMock.incident.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -224,7 +245,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'DOWN',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: true,
         statusCode: 200,
         durationMs: 100,
@@ -249,7 +270,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'DOWN',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: false,
         statusCode: 503,
         durationMs: 80,
@@ -272,7 +293,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'PENDING',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: true,
         statusCode: 200,
         durationMs: 120,
@@ -292,7 +313,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'UP',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: false,
         statusCode: 500,
         durationMs: 250,
@@ -313,7 +334,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'UP',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: false,
         statusCode: 500,
         durationMs: 250,
@@ -330,7 +351,7 @@ describe('UptimeProcessor', () => {
         ...baseMonitor,
         status: 'UP',
       });
-      httpPoolServiceMock.checkUrl.mockResolvedValue({
+      monitorCheckServiceMock.execute.mockResolvedValue({
         success: false,
         statusCode: 500,
         durationMs: 250,

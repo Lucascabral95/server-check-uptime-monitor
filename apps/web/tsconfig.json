@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -27,10 +23,7 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@workspace/types": ["../backend-uptime/src/dto"]
+      "@/*": ["./*"]
     }
   },
   "include": [
@@ -43,7 +36,5 @@
     "vitest.setup.ts",
     "vitest.mocks.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

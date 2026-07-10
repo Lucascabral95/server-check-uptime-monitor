@@ -13,51 +13,50 @@ import { EmailModule } from './email/email.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { HealthModule } from './health/health.module';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
+import { RedisThrottlerStorage } from './common/rate-limit/redis-throttler.storage';
+import { WorkspaceModule } from './workspace/workspace.module';
 
 const MULTIPLIER_THROTTLER = 10;
 
 @Module({
-    imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
-        HealthModule,
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    HealthModule,
 
-        ThrottlerModule.forRoot([
-            {
-                name: "short",
-                ttl: 1000,
-                limit: 3 * MULTIPLIER_THROTTLER,
-            },
-            {
-                name: "medium",
-                ttl: 10000,
-                limit: 20 * MULTIPLIER_THROTTLER,
-            },
-            {
-                name: "long",
-                ttl: 60000,
-                limit: 100 * MULTIPLIER_THROTTLER,
-            },
-        ]),
+    ThrottlerModule.forRootAsync({
+      imports: [RateLimitModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        storage,
+        throttlers: [
+          { name: 'short', ttl: 1000, limit: 3 * MULTIPLIER_THROTTLER },
+          { name: 'medium', ttl: 10000, limit: 20 * MULTIPLIER_THROTTLER },
+          { name: 'long', ttl: 60000, limit: 100 * MULTIPLIER_THROTTLER },
+        ],
+      }),
+    }),
 
-        BullModule.forRoot({
-            connection: redisConnection,
-        }),
+    BullModule.forRoot({
+      connection: redisConnection,
+    }),
 
-        PrismaModule,
-        UserModule,
-        UptimeModule,
-        PingLogModule,
-        BullmqModule,
-        JwtModuleModule,
-        EmailModule,
-    ],
-    controllers: [AppController],
-    providers: [
-        AppService,
-        {
-            provide: APP_GUARD,
-            useClass: ThrottlerGuard,
-        }
-    ],
+    PrismaModule,
+    UserModule,
+    UptimeModule,
+    PingLogModule,
+    BullmqModule,
+    JwtModuleModule,
+    EmailModule,
+    WorkspaceModule,
+  ],
+  controllers: [AppController],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

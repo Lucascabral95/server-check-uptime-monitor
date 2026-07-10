@@ -1,4 +1,4 @@
-import { Monitor, Status } from '@prisma/client';
+import { Monitor, MonitorType, Status } from '@prisma/client';
 
 export class MonitorFactory {
   private static readonly REAL_MONITORS = [
@@ -40,15 +40,14 @@ export class MonitorFactory {
     },
   ];
 
-  static create(
-    userId: string,
-    index: number,
-  ): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> {
+  static create(userId: string, index: number): Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> {
     const now = new Date();
     const monitorConfig = this.REAL_MONITORS[index % this.REAL_MONITORS.length];
 
     return {
       userId,
+      workspaceId: null,
+      projectId: null,
       name: monitorConfig.name,
       url: monitorConfig.url,
       frequency: monitorConfig.frequency,
@@ -56,6 +55,15 @@ export class MonitorFactory {
       nextCheck: new Date(now.getTime() + monitorConfig.frequency * 1000),
       lastCheck: new Date(now.getTime() - monitorConfig.frequency * 1000),
       status: monitorConfig.status,
+      monitorType: MonitorType.HTTP,
+      config: {},
+      consecutiveFailures: 0,
+      consecutiveSuccesses: 0,
+      heartbeatSecretHash: null,
+      heartbeatIntervalSeconds: null,
+      heartbeatGraceSeconds: null,
+      heartbeatLastReceivedAt: null,
+      maintenanceUntil: null,
     };
   }
 

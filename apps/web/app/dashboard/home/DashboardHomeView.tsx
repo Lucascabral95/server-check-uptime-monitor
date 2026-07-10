@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { FiPlus } from "react-icons/fi";
 
 import { FiltersMonitor } from "@/presentation/components/Filters";
@@ -14,19 +13,20 @@ import LoadingState from "@/presentation/components/shared/states/LoadingState";
 import Toast from "@/presentation/components/shared/Toasts/Toast";
 import { useFilters } from "@/presentation/hooks";
 import { ToastProps } from "@/infraestructure/interfaces";
+import { MonitorWizard } from "@/presentation/components/MonitorWizard";
+import { useMonitorEvents } from "@/presentation/hooks/useMonitorEvents.hook";
 
 import "./dashboard-home.scss";
 
-const ENDPOINT_ADD_MONITOR = "/dashboard/home/monitors/new/http";
-
 const DashboardHome = () => {
-  const router = useRouter();
+  useMonitorEvents();
 
   const [toast, setToast] = useState<ToastProps>({
     visible: false,
     message: "",
     type: "success",
   });
+  const [showWizard, setShowWizard] = useState(false);
 
   const {
     searchValue,
@@ -39,11 +39,7 @@ const DashboardHome = () => {
     clearSearch,
   } = useFilters();
 
-  const { uptimes, myStats } = useUptime(undefined, filters);
-
-  const redirectToAddServer = () => {
-    router.push(ENDPOINT_ADD_MONITOR);
-  };
+  const { uptimes, myStats, createUptime } = useUptime(undefined, filters);
 
   const isInitialLoading =
     (uptimes.isLoading && !uptimes.data) ||
@@ -74,12 +70,23 @@ const DashboardHome = () => {
         </div>
 
         <div className="button-add-server">
-          <button className="add-server" onClick={redirectToAddServer}>
+          <button className="add-server" onClick={() => setShowWizard(true)}>
             <FiPlus className="icon" />
             <span>Nuevo servidor</span>
           </button>
         </div>
       </div>
+
+      {showWizard && (
+        <MonitorWizard
+          onSubmit={(monitor) =>
+            createUptime.mutate(monitor, {
+              onSuccess: () => setShowWizard(false),
+            })
+          }
+          submitting={createUptime.isPending}
+        />
+      )}
 
       <div className="filter-current">
         <FiltersMonitor
@@ -110,11 +117,7 @@ const DashboardHome = () => {
 
         <div className="cards-grid">
           {uptimes.data?.data?.map((uptime) => (
-            <CardUptime
-              key={uptime.id}
-              uptimes={uptime}
-              setToast={setToast}
-            />
+            <CardUptime key={uptime.id} uptimes={uptime} setToast={setToast} />
           ))}
         </div>
       </div>

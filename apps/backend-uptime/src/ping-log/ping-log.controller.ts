@@ -1,27 +1,17 @@
-import { 
-  Controller,
-  Get,
-  Param,
-  Delete,
-  UseGuards,
-  Request,
-  Query,
- } from '@nestjs/common';
-import { 
+import { Controller, Get, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
+import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
- } from '@nestjs/swagger';
- import { 
-  SkipThrottle,
-  Throttle,
- } from '@nestjs/throttler';
+} from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { PingLogService } from './ping-log.service';
 import { RequestUserDto } from 'src/user/dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PingLogOwnerGuard } from 'src/auth/guards/ping-log-owner.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
@@ -42,6 +32,7 @@ export class PingLogController {
 
   @Throttle({ short: {} })
   @Delete(':id')
+  @UseGuards(PingLogOwnerGuard)
   @ApiOperation({ summary: 'Eliminar PingLog por ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'PingLog deleted successfully' })
@@ -65,7 +56,7 @@ export class PingLogController {
 
   // Obtener ping logs de monitors creados por un usuario
   @Throttle({ medium: {} })
-  @Get("user/my-logs")
+  @Get('user/my-logs')
   @ApiOperation({ summary: 'Obtener PingLogs de los monitores del usuario autenticado' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -76,6 +67,7 @@ export class PingLogController {
 
   @Throttle({ medium: {} })
   @Get('id/:id')
+  @UseGuards(PingLogOwnerGuard)
   @ApiOperation({ summary: 'Obtener PingLog por ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, type: GetPingLogDto })

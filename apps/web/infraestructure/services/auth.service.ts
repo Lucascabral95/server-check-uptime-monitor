@@ -1,5 +1,18 @@
-import { signIn, fetchAuthSession, signOut, getCurrentUser, signUp, confirmSignUp, resendSignUpCode } from 'aws-amplify/auth';
-import { LoginResponseUser, ConfirmEmailCredentials, ConfirmEmailResponse, ResendCodeResponse } from '@/infraestructure/interfaces';
+import {
+  signIn,
+  fetchAuthSession,
+  signOut,
+  getCurrentUser,
+  signUp,
+  confirmSignUp,
+  resendSignUpCode,
+} from "aws-amplify/auth";
+import {
+  LoginResponseUser,
+  ConfirmEmailCredentials,
+  ConfirmEmailResponse,
+  ResendCodeResponse,
+} from "@/infraestructure/interfaces";
 
 interface LoginCredentials {
   email: string;
@@ -18,7 +31,9 @@ interface SignUpResult {
 }
 
 class AuthService {
-  async register(credentials: RegisterCredentials): Promise<{ isComplete: boolean; userId: string }> {
+  async register(
+    credentials: RegisterCredentials,
+  ): Promise<{ isComplete: boolean; userId: string }> {
     const { email, password } = credentials;
 
     try {
@@ -29,30 +44,31 @@ class AuthService {
           userAttributes: {
             email,
           },
-          autoSignIn: false, 
+          autoSignIn: false,
         },
       });
 
-      const isComplete = (result as { isComplete?: boolean }).isComplete ?? false;
-      const userId = (result as { userId?: string })?.userId ?? '';
-
-      console.log('SignUp result:', { isComplete, userId, nextStep: (result as { nextStep?: unknown })?.nextStep });
+      const isComplete =
+        (result as { isComplete?: boolean }).isComplete ?? false;
+      const userId = (result as { userId?: string })?.userId ?? "";
 
       return { isComplete, userId };
     } catch (error: unknown) {
-      console.error('SignUp error:', error);
-
       const err = error as { name?: string; message?: string };
-      if (err.name === 'UsernameExistsException') {
-        throw new Error('El email ya está registrado. Intenta iniciar sesión.');
+      if (err.name === "UsernameExistsException") {
+        throw new Error("El email ya está registrado. Intenta iniciar sesión.");
       }
 
-      if (err.name === 'InvalidPasswordException') {
-        throw new Error('La contraseña no cumple con los requisitos. Debe tener al menos 8 caracteres, mayúscula, minúscula, número y carácter especial.');
+      if (err.name === "InvalidPasswordException") {
+        throw new Error(
+          "La contraseña no cumple con los requisitos. Debe tener al menos 8 caracteres, mayúscula, minúscula, número y carácter especial.",
+        );
       }
 
-      if (err.name === 'InvalidParameterException') {
-        throw new Error('Parámetro inválido. Verifica que el email sea válido.');
+      if (err.name === "InvalidParameterException") {
+        throw new Error(
+          "Parámetro inválido. Verifica que el email sea válido.",
+        );
       }
 
       throw error;
@@ -68,7 +84,7 @@ class AuthService {
     });
 
     if (!signInResult.isSignedIn) {
-      throw new Error('Login no completado');
+      throw new Error("Login no completado");
     }
 
     const session = await fetchAuthSession();
@@ -76,7 +92,7 @@ class AuthService {
     const idToken = session.tokens?.idToken?.toString();
 
     if (!accessToken || !idToken) {
-      throw new Error('No se pudieron obtener los tokens');
+      throw new Error("No se pudieron obtener los tokens");
     }
 
     await this.establishSession(accessToken, idToken);
@@ -96,23 +112,26 @@ class AuthService {
   // recién obtenidos de Amplify se mandan a un Route Handler propio que los
   // guarda como cookie httpOnly — nunca vuelven a tocar document.cookie ni
   // localStorage.
-  private async establishSession(accessToken: string, idToken: string): Promise<void> {
-    const response = await fetch('/api/auth/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
+  private async establishSession(
+    accessToken: string,
+    idToken: string,
+  ): Promise<void> {
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ accessToken, idToken }),
     });
 
     if (!response.ok) {
-      throw new Error('No se pudo establecer la sesión');
+      throw new Error("No se pudo establecer la sesión");
     }
   }
 
   private async destroySession(): Promise<void> {
-    await fetch('/api/auth/session', {
-      method: 'DELETE',
-      credentials: 'include',
+    await fetch("/api/auth/session", {
+      method: "DELETE",
+      credentials: "include",
     });
   }
 
@@ -125,7 +144,9 @@ class AuthService {
     }
   }
 
-  async confirmEmail(credentials: ConfirmEmailCredentials): Promise<ConfirmEmailResponse> {
+  async confirmEmail(
+    credentials: ConfirmEmailCredentials,
+  ): Promise<ConfirmEmailResponse> {
     const { email, code } = credentials;
 
     try {
@@ -134,31 +155,32 @@ class AuthService {
         confirmationCode: code,
       });
 
-      const isComplete = (result as { isComplete?: boolean }).isComplete ?? true;
+      const isComplete =
+        (result as { isComplete?: boolean }).isComplete ?? true;
 
       return { isComplete };
     } catch (error: unknown) {
-      console.error('ConfirmSignUp error:', error);
-
       const err = error as { name?: string; message?: string };
-      if (err.name === 'CodeMismatchException') {
-        throw new Error('El código es incorrecto. Verifica e intenta nuevamente.');
+      if (err.name === "CodeMismatchException") {
+        throw new Error(
+          "El código es incorrecto. Verifica e intenta nuevamente.",
+        );
       }
 
-      if (err.name === 'ExpiredCodeException') {
-        throw new Error('El código ha expirado. Solicita un nuevo código.');
+      if (err.name === "ExpiredCodeException") {
+        throw new Error("El código ha expirado. Solicita un nuevo código.");
       }
 
-      if (err.name === 'UserNotFoundException') {
-        throw new Error('Usuario no encontrado. Verifica tu email.');
+      if (err.name === "UserNotFoundException") {
+        throw new Error("Usuario no encontrado. Verifica tu email.");
       }
 
-      if (err.name === 'NotAuthorizedException') {
-        throw new Error('El usuario ya está verificado. Inicia sesión.');
+      if (err.name === "NotAuthorizedException") {
+        throw new Error("El usuario ya está verificado. Inicia sesión.");
       }
 
-      if (err.name === 'InvalidParameterException') {
-        throw new Error('Parámetro inválido. Verifica el código ingresado.');
+      if (err.name === "InvalidParameterException") {
+        throw new Error("Parámetro inválido. Verifica el código ingresado.");
       }
 
       throw error;
@@ -171,25 +193,28 @@ class AuthService {
         username: email,
       });
 
-      const destination = (result as { destination?: string })?.destination ?? email;
-      const deliveryMedium = (result as { deliveryMedium?: string })?.deliveryMedium ?? 'EMAIL';
-      const attribute = (result as { attribute?: string })?.attribute ?? 'email';
+      const destination =
+        (result as { destination?: string })?.destination ?? email;
+      const deliveryMedium =
+        (result as { deliveryMedium?: string })?.deliveryMedium ?? "EMAIL";
+      const attribute =
+        (result as { attribute?: string })?.attribute ?? "email";
 
       return { destination, deliveryMedium, attribute };
     } catch (error: unknown) {
-      console.error('ResendSignUpCode error:', error);
-
       const err = error as { name?: string; message?: string };
-      if (err.name === 'UserNotFoundException') {
-        throw new Error('Usuario no encontrado. Verifica tu email.');
+      if (err.name === "UserNotFoundException") {
+        throw new Error("Usuario no encontrado. Verifica tu email.");
       }
 
-      if (err.name === 'InvalidParameterException') {
-        throw new Error('Parámetro inválido. Verifica tu email.');
+      if (err.name === "InvalidParameterException") {
+        throw new Error("Parámetro inválido. Verifica tu email.");
       }
 
-      if (err.name === 'LimitExceededException') {
-        throw new Error('Has excedido el límite de reenvíos. Espera unos minutos e intenta nuevamente.');
+      if (err.name === "LimitExceededException") {
+        throw new Error(
+          "Has excedido el límite de reenvíos. Espera unos minutos e intenta nuevamente.",
+        );
       }
 
       throw error;
