@@ -1,5 +1,7 @@
 export * from "./create-uptime.dto"
+export * from "./create-workspace-monitor.dto"
 export * from "./update-uptime.dto"
+export * from "./maintenance-window.dto"
 export * from "./get-uptime.dto"
 export * from "./pagination-uptime.dto"
 export * from "./pagination-incidents.dto"

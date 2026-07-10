@@ -1,4 +1,4 @@
-import { Status } from './enums';
+import { MonitorType, Status } from "./enums";
 
 // Monitor uptime interface
 export interface GetUptimeDto {
@@ -11,6 +11,11 @@ export interface GetUptimeDto {
   nextCheck: Date;
   lastCheck: Date;
   status: Status;
+  monitorType?: MonitorType;
+  config?: Record<string, unknown>;
+  consecutiveFailures?: number;
+  consecutiveSuccesses?: number;
+  maintenanceWindows?: MaintenanceWindowDto[];
   createdAt: string;
   updatedAt: string;
 }
@@ -20,6 +25,12 @@ export interface CreateUptimeDto {
   name: string;
   url: string;
   frequency?: number;
+  monitorType?: MonitorType;
+  config?: Record<string, unknown>;
+  heartbeatIntervalSeconds?: number;
+  heartbeatGraceSeconds?: number;
+  projectId?: string;
+  maintenanceWindows?: MaintenanceWindowDto[];
 }
 
 // Update monitor DTO
@@ -27,6 +38,18 @@ export interface UpdateUptimeDto {
   name?: string;
   frequency?: number;
   isActive?: boolean;
+  monitorType?: MonitorType;
+  config?: Record<string, unknown>;
+  maintenanceUntil?: string | null;
+  maintenanceWindows?: MaintenanceWindowDto[];
+}
+
+export interface MaintenanceWindowDto {
+  daysOfWeek: number[];
+  startMinute: number;
+  durationMinutes: number;
+  timezone: string;
+  enabled?: boolean;
 }
 
 // Get all uptimes response

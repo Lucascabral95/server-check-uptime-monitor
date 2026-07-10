@@ -1,0 +1,5 @@
+.monitor-wizard { display: grid; gap: 1rem; max-width: 42rem; padding: 1.5rem; border-radius: 1rem; background: var(--surface, #171b24); color: white; }
+.monitor-wizard label { display: grid; gap: .35rem; }
+.monitor-wizard input, .monitor-wizard select { padding: .65rem; border-radius: .45rem; border: 1px solid #3b4354; background: #0f131b; color: inherit; }
+.monitor-wizard fieldset { display: grid; gap: .75rem; border: 1px solid #3b4354; border-radius: .5rem; padding: .75rem; }
+.monitor-wizard button { padding: .7rem 1rem; border: 0; border-radius: .45rem; background: #3bd671; color: #07120b; font-weight: 700; }

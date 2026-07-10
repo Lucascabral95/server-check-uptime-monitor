@@ -10,7 +10,6 @@
   "bracketSameLine": false,
   "jsxSingleQuote": false,
   "quoteProps": "as-needed",
-  "semi": true,
   "useTabs": false,
   "overrides": [
     {

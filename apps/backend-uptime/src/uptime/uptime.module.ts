@@ -13,26 +13,47 @@ import { EmailModule } from 'src/email/email.module';
 import { MonitorOwnerGuard } from 'src/auth/guards/monitor-owner.guard';
 import { GracefulShutdownService } from './graceful-shutdown.service';
 import { IncidentReconcilerService } from './incident-reconciler.service';
+import { MonitorScheduleOutboxService } from './services/monitor-schedule-outbox.service';
+import { MonitorScheduleService } from './services/monitor-schedule.service';
+import { CheckRunService } from './services/check-run.service';
+import { WorkspaceModule } from 'src/workspace/workspace.module';
+import { WorkspaceMonitorController } from './workspace-monitor.controller';
+import { MonitorCheckService } from './services/monitor-check.service';
+import { HeartbeatService } from './heartbeat.service';
+import { HeartbeatController } from './heartbeat.controller';
+import { SecretEnvelopeService } from './services/secret-envelope.service';
+import { MonitorAggregateService } from './services/monitor-aggregate.service';
+import { EventsService } from './services/events.service';
+import { EventsController } from './events.controller';
 
 @Module({
-    imports: [
-      BullmqModule,
-      PrismaModule,
-      JwtModuleModule,
-      PingLogModule,
-      EmailModule,
-      ],
-    controllers: [UptimeController],
-    providers: [
-      UptimeService,
-      UptimeProcessor,
-      UserService,
-      HttpPoolService,
-      EmailService,
-      MonitorOwnerGuard,
-      GracefulShutdownService,
-      IncidentReconcilerService,
-      ],
-    exports: [HttpPoolService],
+  imports: [
+    BullmqModule,
+    PrismaModule,
+    JwtModuleModule,
+    PingLogModule,
+    EmailModule,
+    WorkspaceModule,
+  ],
+  controllers: [UptimeController, WorkspaceMonitorController, HeartbeatController, EventsController],
+  providers: [
+    UptimeService,
+    UptimeProcessor,
+    UserService,
+    HttpPoolService,
+    EmailService,
+    MonitorOwnerGuard,
+    GracefulShutdownService,
+    IncidentReconcilerService,
+    MonitorScheduleService,
+    MonitorScheduleOutboxService,
+    CheckRunService,
+    MonitorCheckService,
+    HeartbeatService,
+    SecretEnvelopeService,
+    MonitorAggregateService,
+    EventsService,
+  ],
+  exports: [HttpPoolService],
 })
 export class UptimeModule {}

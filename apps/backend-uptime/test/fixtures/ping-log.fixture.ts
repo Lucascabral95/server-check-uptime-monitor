@@ -4,6 +4,7 @@ import { mockMonitor } from './monitor.fixture';
 export const mockSuccessfulPingLog: PingLog = {
   id: 'log-123',
   monitorId: mockMonitor.id,
+  runId: null,
   statusCode: 200,
   durationMs: 145,
   error: null,
@@ -16,6 +17,7 @@ export const mockSuccessfulPingLog: PingLog = {
 export const mockFailedPingLog: PingLog = {
   id: 'log-456',
   monitorId: mockMonitor.id,
+  runId: null,
   statusCode: 500,
   durationMs: 3045,
   error: 'Internal Server Error',
@@ -28,6 +30,7 @@ export const mockFailedPingLog: PingLog = {
 export const mockTimeoutPingLog: PingLog = {
   id: 'log-789',
   monitorId: mockMonitor.id,
+  runId: null,
   statusCode: 504,
   durationMs: 30000,
   error: 'Gateway Timeout',
