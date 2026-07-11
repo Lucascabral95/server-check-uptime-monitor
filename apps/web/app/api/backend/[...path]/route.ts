@@ -34,18 +34,20 @@ async function proxy(
     );
   }
 
-  // El idToken vive en una cookie httpOnly (seteada por /api/auth/session):
+  // El ID token vive en una cookie httpOnly (seteada por /api/auth/session):
   // el browser nunca puede leerlo, pero este proxy same-origin sí, y lo
   // reenvía como el Authorization: Bearer que el backend NestJS ya esperaba
   // — el backend no necesita ningún cambio.
-  const accessToken = request.cookies.get("accessToken")?.value;
+  // Cognito no incluye el email en el access token. El backend crea el
+  // usuario local a partir de la identidad del ID token, que sí lo incluye.
+  const idToken = request.cookies.get("idToken")?.value;
   const targetUrl = `${BACKEND_URL}/${path.join("/")}${request.nextUrl.search}`;
 
   const headers: Record<string, string> = {
     "Content-Type": request.headers.get("content-type") ?? "application/json",
   };
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
   }
 
   const body = BODYLESS_METHODS.has(request.method)

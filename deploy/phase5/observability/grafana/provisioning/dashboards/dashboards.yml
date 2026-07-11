@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: Server Check
+    orgId: 1
+    folder: Server Check
+    folderUid: server-check
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

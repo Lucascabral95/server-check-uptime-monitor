@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 
 import MonitorsDetailsById from './page'
 import useMonitorByIdWithStatsLogs from '@/presentation/hooks/useMonitorByIdWithStatsLogs'
 
 vi.mock('@/presentation/hooks/useMonitorByIdWithStatsLogs', () => ({
   default: vi.fn(),
+}))
+
+vi.mock('@/lib/Resources/Api/UptimeApi', () => ({
+  getMonitorAggregates: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@/presentation/components/shared/states/LoadingState', () => ({
@@ -26,7 +32,7 @@ vi.mock('@/presentation/components/shared/states/ErrorState', () => ({
 vi.mock('@/presentation/components/Dashboard/Home/DetailsUptime/MonitorDetailsHeader', () => ({
   default: ({ monitor, handleOpenUrl }: any) => (
     <div data-testid="monitor-details-header">
-      <span>{monitor.name}</span>
+      <span>{monitor.monitor.name}</span>
       <button onClick={handleOpenUrl}>open-url</button>
     </div>
   ),
@@ -59,11 +65,19 @@ const mockUseMonitorByIdWithStatsLogs =
   useMonitorByIdWithStatsLogs as unknown as ReturnType<typeof vi.fn>
 
 describe('MonitorsDetailsById', () => {
+  let queryClient: QueryClient
+
   const baseHookMock = {
     data: {
-      id: '1',
-      name: 'Monitor Test',
-      url: 'https://test.com',
+      monitor: {
+        id: '1',
+        name: 'Monitor Test',
+        url: 'https://test.com',
+        logs: [],
+      },
+      stats: {
+        last24Hours: {},
+      },
     },
     isLoading: false,
     isError: false,
@@ -76,8 +90,19 @@ describe('MonitorsDetailsById', () => {
     countLimitIncidents: 5,
   }
 
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  )
+
   beforeEach(() => {
     vi.clearAllMocks()
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
     mockUseMonitorByIdWithStatsLogs.mockReturnValue(baseHookMock)
   })
 
@@ -87,7 +112,7 @@ describe('MonitorsDetailsById', () => {
       isLoading: true,
     })
 
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     expect(
       screen.getByTestId('loading-state')
@@ -103,7 +128,7 @@ describe('MonitorsDetailsById', () => {
       refetch,
     })
 
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     expect(
       screen.getByText('Error al cargar el monitoreo')
@@ -114,7 +139,7 @@ describe('MonitorsDetailsById', () => {
   })
 
   it('renderiza correctamente el detalle del monitor', () => {
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     expect(screen.getByText('Monitoreos')).toBeInTheDocument()
     expect(screen.getByTestId('monitor-details-header')).toBeInTheDocument()
@@ -123,7 +148,7 @@ describe('MonitorsDetailsById', () => {
   })
 
   it('dispara navegación al hacer click en volver', () => {
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     fireEvent.click(screen.getByText('Monitoreos'))
 
@@ -131,7 +156,7 @@ describe('MonitorsDetailsById', () => {
   })
 
   it('dispara redirectToLink desde MonitorDetailsHeader', () => {
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     fireEvent.click(screen.getByText('open-url'))
 
@@ -139,7 +164,7 @@ describe('MonitorsDetailsById', () => {
   })
 
   it('dispara handleMoreIncidents desde LatestIncidents', () => {
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     fireEvent.click(screen.getByText('more'))
 
@@ -147,8 +172,19 @@ describe('MonitorsDetailsById', () => {
   })
 
   it('pasa correctamente countLimitIncidents a LatestIncidents', () => {
-    render(<MonitorsDetailsById />)
+    render(<MonitorsDetailsById />, { wrapper })
 
     expect(screen.getByText('5')).toBeInTheDocument()
+  })
+
+  it('renderiza un error recuperable cuando no llega data del monitor', () => {
+    mockUseMonitorByIdWithStatsLogs.mockReturnValue({
+      ...baseHookMock,
+      data: undefined,
+    })
+
+    render(<MonitorsDetailsById />, { wrapper })
+
+    expect(screen.getByText('Monitoreo no encontrado')).toBeInTheDocument()
   })
 })

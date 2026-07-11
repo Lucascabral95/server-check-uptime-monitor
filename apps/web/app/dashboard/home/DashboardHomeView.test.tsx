@@ -8,6 +8,10 @@ import useUptime from '@/presentation/hooks/useUptime.hook';
 
 vi.mock('@/presentation/hooks/useUptime.hook');
 
+vi.mock('@/presentation/hooks/useMonitorEvents.hook', () => ({
+  useMonitorEvents: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),

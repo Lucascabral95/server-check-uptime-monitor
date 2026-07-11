@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Server Check backup job every day
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=server-check-backup.service
+
+[Install]
+WantedBy=timers.target
