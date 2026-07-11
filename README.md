@@ -20,7 +20,7 @@ Antes de ejecutar, instalá AWS CLI v2 y Terraform 1.11+, autenticá tu cuenta c
 
 ```powershell
 # Desde la raíz, con todos los cambios ya confirmados en Git
-.\scripts\deploy-aws.ps1 -Region us-east-1
+npm run deploy:aws
 ```
 
 El comando crea el bucket de estado, red, EC2, IAM, S3 de artefactos y backups, Cognito, identidad SES, CloudFront y un presupuesto opcional. Luego empaqueta el commit actual, lo sube a S3, escribe los secretos en Parameter Store, instala el stack, realiza las migraciones y verifica `/health/readiness`. Al terminar imprime la URL HTTPS de CloudFront.
@@ -28,7 +28,7 @@ El comando crea el bucket de estado, red, EC2, IAM, S3 de artefactos y backups, 
 Para una cuenta Free Tier nueva, el valor por defecto usa `m7i-flex.large`, porque el stack completo no cabe de forma fiable en 1 GiB. AWS puede aplicar créditos y elegibilidad según la fecha de creación de la cuenta y región; configurá una alerta de presupuesto para evitar sorpresas:
 
 ```powershell
-.\scripts\deploy-aws.ps1 -BudgetAlertEmail tu-email@ejemplo.com -MonthlyBudgetUsd 15
+npm run deploy:aws
 ```
 
 SES empieza en sandbox: verificá el email que envía AWS y solicitá salida de sandbox si necesitás notificar a destinatarios no verificados. Para eliminar todos los recursos al finalizar las pruebas ejecutá `terraform -chdir=deploy/aws/main destroy` (con la misma configuración de backend) y luego `terraform -chdir=deploy/aws/bootstrap destroy`.
