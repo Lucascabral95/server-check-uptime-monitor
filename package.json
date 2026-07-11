@@ -2,6 +2,13 @@
   "name": "server-check-app",
   "version": "1.0.0",
   "private": true,
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": "^10.8.2",
+      "onFail": "warn"
+    }
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -18,7 +25,8 @@
     "docker:backend": "cd apps/backend-uptime && docker-compose up --build -d backend-uptime",
     "build:start:frontend": "cd apps/web && npm run build && npm start",
     "start:frontend": "cd apps/web && npm start",
-    "security:audit": "npm audit --audit-level=high"
+    "security:audit": "npm audit --audit-level=high",
+    "deploy:aws": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\deploy-aws.ps1"
   },
   "keywords": [],
   "author": "Lucas Cabral Dev",

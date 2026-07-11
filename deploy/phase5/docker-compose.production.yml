@@ -2,69 +2,198 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
-    env_file: [./secrets/postgres.env]
+    env_file: ["${POSTGRES_ENV_FILE:-./secrets/postgres.env}"]
     volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
     networks: [internal]
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    env_file: [./secrets/redis.env]
+    env_file: ["${REDIS_ENV_FILE:-./secrets/redis.env}"]
     command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
     networks: [internal]
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: apps/backend-uptime/Dockerfile
+      target: migrate
+    restart: "no"
+    env_file: ["${BACKEND_ENV_FILE:-./secrets/backend.env}"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 384m
+    cpus: 0.5
+    pids_limit: 128
+    networks: [internal]
+
   backend-uptime:
-    build: ../../apps/backend-uptime
+    build:
+      context: ../..
+      dockerfile: apps/backend-uptime/Dockerfile
     restart: unless-stopped
-    env_file: [./secrets/backend.env]
+    init: true
+    env_file: ["${BACKEND_ENV_FILE:-./secrets/backend.env}"]
     environment:
       REDIS_HOST: redis
-      OTEL_ENABLED: "${OTEL_ENABLED:-false}"
+      OTEL_ENABLED: "${OTEL_ENABLED:-true}"
       OTEL_SERVICE_NAME: server-check-api
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
-    depends_on: [postgres, redis]
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}"
+      OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=production,service.version=${APP_VERSION:-unknown}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     expose: ["4000"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://localhost:4000/health/readiness', response => { response.resume(); process.exit(response.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
     networks: [internal]
+
   web:
-    build: ../../apps/web
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL_BACKEND: "${PUBLIC_ORIGIN}/api/v1"
+        NEXT_PUBLIC_URL_FRONTEND: "${PUBLIC_ORIGIN}"
+        NEXT_PUBLIC_COGNITO_USER_POOL_ID: "${NEXT_PUBLIC_COGNITO_USER_POOL_ID}"
+        NEXT_PUBLIC_COGNITO_CLIENT_ID: "${NEXT_PUBLIC_COGNITO_CLIENT_ID}"
     restart: unless-stopped
-    environment: ["BACKEND_API_URL=http://backend-uptime:4000/api/v1"]
-    depends_on: [backend-uptime]
+    environment:
+      BACKEND_API_URL: http://backend-uptime:4000/api/v1
+      NEXT_PUBLIC_API_URL_BACKEND: "${PUBLIC_ORIGIN}/api/v1"
+      NEXT_PUBLIC_URL_FRONTEND: "${PUBLIC_ORIGIN}"
+      NEXT_PUBLIC_COGNITO_USER_POOL_ID: "${NEXT_PUBLIC_COGNITO_USER_POOL_ID}"
+      NEXT_PUBLIC_COGNITO_CLIENT_ID: "${NEXT_PUBLIC_COGNITO_CLIENT_ID}"
+    depends_on:
+      backend-uptime:
+        condition: service_healthy
     expose: ["3000"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://localhost:3000/', response => { response.resume(); process.exit(response.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 192
     networks: [internal]
+
   caddy:
     image: caddy:2.8-alpine
     restart: unless-stopped
-    env_file: [./secrets/caddy.env]
-    ports: ["80:80", "443:443"]
+    ports: ["80:80"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks: [edge, internal]
+    depends_on:
+      web:
+        condition: service_healthy
     read_only: true
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
+    tmpfs: ["/tmp", "/data", "/config"]
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 128
+    networks: [edge, internal]
 
   prometheus:
     image: prom/prometheus:v2.53.0
     restart: unless-stopped
-    volumes: ["./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./observability/alerts.yml:/etc/prometheus/alerts.yml:ro", "prometheus_data:/prometheus"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.retention.time=7d",
+      ]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 192
     networks: [internal]
-    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
 
   grafana:
     image: grafana/grafana:11.1.0
     restart: unless-stopped
-    environment: ["GF_AUTH_ANONYMOUS_ENABLED=false", "GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_SIGNOUT_MENU: "true"
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
     secrets: [grafana_admin_password]
-    volumes: ["grafana_data:/var/lib/grafana"]
+    ports: ["127.0.0.1:3001:3000"]
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/dashboard.json:/var/lib/grafana/dashboards/server-check-platform.json:ro
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 192
     networks: [internal]
 
   loki:
     image: grafana/loki:3.1.0
     restart: unless-stopped
-    command: -config.file=/etc/loki/local-config.yaml
+    command: ["-config.file=/etc/loki/local-config.yaml"]
     volumes: ["loki_data:/loki"]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 192
+    networks: [internal]
+
+  tempo:
+    image: grafana/tempo:2.10.5
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 192
     networks: [internal]
 
   otel-collector:
@@ -72,6 +201,33 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes: ["./observability/otel-collector.yml:/etc/otelcol/config.yaml:ro"]
+    depends_on:
+      tempo:
+        condition: service_started
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    networks: [internal]
+
+  alloy:
+    image: grafana/alloy:v1.16.3
+    restart: unless-stopped
+    command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    user: "0"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp"]
+    volumes:
+      - ./observability/alloy.config.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_started
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 128
     networks: [internal]
 
 networks:
@@ -80,14 +236,14 @@ networks:
     internal: true
 
 volumes:
-  caddy_data: {}
-  caddy_config: {}
   prometheus_data: {}
   grafana_data: {}
   loki_data: {}
+  tempo_data: {}
+  alloy_data: {}
   postgres_data: {}
   redis_data: {}
 
 secrets:
   grafana_admin_password:
-    file: ./secrets/grafana_admin_password
+    file: ${GRAFANA_ADMIN_PASSWORD_FILE:-./secrets/grafana_admin_password}

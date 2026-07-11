@@ -21,6 +21,12 @@ npm-debug.log*
 .env
 .env.local
 .env*.local
+deploy/phase5/.env
+deploy/phase5/secrets/*.env
+deploy/phase5/secrets/grafana_admin_password
+deploy/aws/**/.terraform/
+deploy/aws/**/*.tfstate*
+deploy/aws/**/*.tfvars
 
 # OS
 .DS_Store

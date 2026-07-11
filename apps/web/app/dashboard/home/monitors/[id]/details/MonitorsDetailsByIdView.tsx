@@ -28,10 +28,11 @@ const MonitorsDetailsByIdView = () => {
     handleMoreIncidents,
     countLimitIncidents,
   } = useMonitorByIdWithStatsLogs();
+  const monitorId = data?.monitor?.id;
   const aggregates = useQuery<MonitorAggregateDto[]>({
-    queryKey: ["monitor-aggregates", data?.monitor.id],
-    queryFn: () => getMonitorAggregates(data!.monitor.id),
-    enabled: Boolean(data?.monitor.id),
+    queryKey: ["monitor-aggregates", monitorId],
+    queryFn: () => getMonitorAggregates(monitorId!),
+    enabled: Boolean(monitorId),
   });
 
   if (isLoading) {
@@ -50,6 +51,16 @@ const MonitorsDetailsByIdView = () => {
     );
   }
 
+  if (!data) {
+    return (
+      <ErrorState
+        title="Monitoreo no encontrado"
+        description="No pudimos obtener los datos del monitoreo. Intentá nuevamente."
+        onRetry={refetch}
+      />
+    );
+  }
+
   return (
     <div className="details-monitor">
       <div className="details-monitor-container">
@@ -60,13 +71,13 @@ const MonitorsDetailsByIdView = () => {
           </button>
         </div>
 
-        <MonitorDetailsHeader monitor={data!} handleOpenUrl={redirectToLink} />
+        <MonitorDetailsHeader monitor={data} handleOpenUrl={redirectToLink} />
 
-        <MonitorStatsOverview monitor={data!} stats24h={stats24h} />
+        <MonitorStatsOverview monitor={data} stats24h={stats24h} />
         <MonitorAvailabilityChart data={aggregates.data ?? []} />
 
         <LatestIncidents
-          errorLogs={errorLogs!}
+          errorLogs={errorLogs}
           handleMoreIncidents={handleMoreIncidents}
           countLimitIncidents={countLimitIncidents}
         />

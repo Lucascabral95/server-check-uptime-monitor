@@ -20,7 +20,7 @@ const REGION: string = region;
 const TOKEN: string = token;
 
 async function heartbeat() {
-  await fetch(`${CONTROL_PLANE}/api/v1/probe-agents/${REGION}/heartbeat`, {
+  const response = await fetch(`${CONTROL_PLANE}/api/v1/probe-agents/${REGION}/heartbeat`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-probe-token": TOKEN },
     body: JSON.stringify({
@@ -29,6 +29,20 @@ async function heartbeat() {
       capacity: 1,
     }),
   });
+  await response.body?.cancel();
+
+  if (!response.ok) {
+    throw new Error(`Probe heartbeat was rejected with status ${response.status}`);
+  }
+
+  console.info(
+    JSON.stringify({ event: "probe.heartbeat", region: REGION, status: response.status }),
+  );
+}
+
+function logHeartbeatFailure(cause: unknown) {
+  const message = cause instanceof Error ? cause.message : "Unknown heartbeat failure";
+  console.error(JSON.stringify({ event: "probe.heartbeat.failed", region: REGION, message }));
 }
 
 export async function executeProbe(job: ProbeJob) {
@@ -89,8 +103,8 @@ async function pollJobs() {
   for (const job of jobs) await publishResult(await executeProbe(job));
 }
 
-void heartbeat().catch(() => undefined);
-setInterval(() => void heartbeat().catch(() => undefined), 30000).unref();
+void heartbeat().catch(logHeartbeatFailure);
+setInterval(() => void heartbeat().catch(logHeartbeatFailure), 30000).unref();
 void pollJobs().catch(() => undefined);
 setInterval(() => void pollJobs().catch(() => undefined), 5000).unref();
 console.log(

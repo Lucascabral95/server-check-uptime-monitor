@@ -1,20 +1,11 @@
-# Phase 4 deployment
+# Probe agent secundario
 
-1. Create an agent token as an administrator:
+Este Compose se usa en el paso de agente de la guía operativa de [phase 5](../phase5/README.md). No es un flujo de despliegue independiente.
 
-```http
-POST /api/v1/probe-agents
-Authorization: Bearer <access-token>
-Content-Type: application/json
-
-{"name":"Secondary VPS","region":"secondary-buenos-aires","version":"0.1.0"}
-```
-
-The returned token is shown once. Put it only in the secondary VPS environment file and run:
+Después de registrar el agente con una cuenta administradora, guardá el token de una sola vez exclusivamente en `deploy/phase4/.env` y ejecutá desde la VPS secundaria:
 
 ```bash
-cp .env.example .env
-docker compose -f docker-compose.probe-agent.yml up -d --build
+sh ./scripts/deploy-probe-agent.sh
 ```
 
-The agent has no database or Redis credentials. Restrict its egress to the control-plane HTTPS endpoint and monitored targets; do not expose PostgreSQL or Redis on the secondary host.
+El script valida `CONTROL_PLANE_URL`, `PROBE_REGION` y `PROBE_TOKEN`, construye desde el lockfile raíz y espera un log de heartbeat aceptado. El agente no recibe credenciales de PostgreSQL ni Redis y no publica puertos.

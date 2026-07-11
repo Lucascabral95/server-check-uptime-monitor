@@ -1,8 +1,7 @@
 # Deploy and rollback
 
-1. Verify the target image digest and run database migrations with `prisma migrate deploy`.
-2. Start the new stack with Compose and wait for `/health/readiness` to return 200.
-3. Check `/metrics`, queue depth, probe heartbeats and notification failures.
-4. Keep the previous image available until smoke checks pass.
+1. Confirmá la revisión de Git a desplegar y ejecutá `sh ./scripts/deploy-primary.sh` en la VPS principal. El script valida secretos, ejecuta una sola vez `prisma migrate deploy` y espera `/health/readiness` por Caddy.
+2. Verificá el dashboard de Grafana, `/metrics`, logs de Loki, trazas de Tempo, profundidad de colas y heartbeats de agentes antes de declarar el despliegue sano.
+3. Conservá la revisión anterior hasta que los smoke checks y el backup diario hayan sido verificados.
 
-Rollback is `docker compose up -d --no-build` with the previous image tag. Never roll back a migration automatically; use an additive forward migration or restore the database backup after declaring an incident.
+Para revertir código, hacé checkout de la revisión anterior y volvé a ejecutar el script. Nunca reviertas una migración automáticamente: usá una migración aditiva hacia adelante o restaurá un backup tras declarar un incidente y validar la recuperación en una base aislada.

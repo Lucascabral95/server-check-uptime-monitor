@@ -1,0 +1,17 @@
+[Unit]
+Description=Create and upload Server Check PostgreSQL and Redis backups
+Wants=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/server-check/current
+Environment=REPOSITORY_DIR=/opt/server-check/current
+EnvironmentFile=/opt/server-check/shared/secrets/s3.env
+ExecStart=/bin/sh /opt/server-check/current/scripts/backup-production.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/backups/server-check
