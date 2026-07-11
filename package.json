@@ -2,13 +2,6 @@
   "name": "server-check-app",
   "version": "1.0.0",
   "private": true,
-  "devEngines": {
-    "packageManager": {
-      "name": "npm",
-      "version": "^10.8.2",
-      "onFail": "warn"
-    }
-  },
   "workspaces": [
     "apps/*",
     "packages/*"

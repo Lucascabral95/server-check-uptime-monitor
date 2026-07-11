@@ -30,7 +30,11 @@ foreach ($command in @('aws', 'terraform', 'git')) { Require-Command $command }
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repositoryRoot
 
-if (git status --porcelain) { throw 'Commit or stash all changes before deployment. The deployed artifact is the current Git commit.' }
+if (git status --porcelain) {
+  Write-Host 'Deployment stopped: commit or stash all changes first.' -ForegroundColor Yellow
+  Write-Host 'Run: git add .; git commit -m "feat: prepare AWS deployment"' -ForegroundColor Yellow
+  exit 1
+}
 & aws sts get-caller-identity --output json | Out-Null
 
 $bootstrapPath = Join-Path $repositoryRoot 'deploy/phase5/secrets/bootstrap.env'
@@ -38,6 +42,10 @@ if (-not (Test-Path -LiteralPath $bootstrapPath)) { throw "Missing $bootstrapPat
 $secret = Get-EnvFile $bootstrapPath
 $required = @('POSTGRES_USER', 'POSTGRES_DB', 'POSTGRES_PASSWORD', 'REDIS_PASSWORD', 'SECRET_JWT', 'MONITOR_SECRETS_KEY', 'AWS_SES_FROM_EMAIL', 'GRAFANA_ADMIN_PASSWORD')
 foreach ($key in $required) { if ([string]::IsNullOrWhiteSpace($secret[$key])) { throw "Missing $key in bootstrap.env" } }
+
+if ([string]::IsNullOrWhiteSpace($BudgetAlertEmail)) {
+  $BudgetAlertEmail = $secret.AWS_SES_FROM_EMAIL
+}
 
 $bootstrapDirectory = Join-Path $repositoryRoot 'deploy/aws/bootstrap'
 & terraform -chdir=$bootstrapDirectory init -input=false
