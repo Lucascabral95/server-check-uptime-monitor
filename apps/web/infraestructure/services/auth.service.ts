@@ -61,7 +61,7 @@ class AuthService {
 
       if (err.name === "InvalidPasswordException") {
         throw new Error(
-          "La contraseña no cumple con los requisitos. Debe tener al menos 8 caracteres, mayúscula, minúscula, número y carácter especial.",
+          "La contraseña no cumple con los requisitos. Debe tener al menos 12 caracteres, mayúscula, minúscula, número y carácter especial.",
         );
       }
 
@@ -78,10 +78,30 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<void> {
     const { email, password } = credentials;
 
-    const signInResult = await signIn({
-      username: email,
-      password,
-    });
+    let signInResult: Awaited<ReturnType<typeof signIn>>;
+    try {
+      signInResult = await signIn({ username: email, password });
+    } catch (error: unknown) {
+      const err = error as { name?: string; message?: string };
+
+      // Amplify guarda la sesión en el browser; si queda una sesión previa
+      // colgada (token vencido, cuenta distinta, etc.) signIn() rechaza con
+      // esta excepción en lugar de simplemente reemplazarla. Cerramos esa
+      // sesión y reintentamos una sola vez.
+      if (err.name === "UserAlreadyAuthenticatedException") {
+        await signOut();
+        signInResult = await signIn({ username: email, password });
+      } else if (
+        err.name === "NotAuthorizedException" ||
+        err.name === "UserNotFoundException"
+      ) {
+        throw new Error("Email o contraseña incorrectos.");
+      } else if (err.name === "UserNotConfirmedException") {
+        throw new Error("Debes confirmar tu email antes de iniciar sesión.");
+      } else {
+        throw error;
+      }
+    }
 
     if (!signInResult.isSignedIn) {
       throw new Error("Login no completado");

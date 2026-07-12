@@ -5,7 +5,8 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "server-check-${data.aws_caller_identity.current.account_id}-${var.aws_region}-tfstate"
+  bucket        = "server-check-${data.aws_caller_identity.current.account_id}-${var.aws_region}-tfstate"
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_versioning" "terraform_state" {

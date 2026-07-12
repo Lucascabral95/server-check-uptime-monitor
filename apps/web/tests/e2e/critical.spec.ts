@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test('landing page is reachable and has a primary CTA', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(/server|check|uptime/i);
+  await expect(page).toHaveTitle(/monitoreo de servidores/i);
   await expect(page.getByRole('link', { name: /crear|registr|comenz/i }).first()).toBeVisible();
 });
 

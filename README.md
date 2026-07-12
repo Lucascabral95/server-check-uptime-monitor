@@ -19,11 +19,11 @@ La producción se despliega con Terraform en una única EC2. Docker Compose ejec
 Antes de ejecutar, instalá AWS CLI v2 y Terraform 1.11+, autenticá tu cuenta con `aws configure`, confirmá que el remitente de SES sea una dirección real que puedas verificar y completá `deploy/phase5/secrets/bootstrap.env` desde su ejemplo. Ese archivo no se versiona.
 
 ```powershell
-# Desde la raíz, con todos los cambios ya confirmados en Git
+# Desde la raíz del proyecto
 npm run deploy:aws
 ```
 
-El comando crea el bucket de estado, red, EC2, IAM, S3 de artefactos y backups, Cognito, identidad SES, CloudFront y un presupuesto opcional. Luego empaqueta el commit actual, lo sube a S3, escribe los secretos en Parameter Store, instala el stack, realiza las migraciones y verifica `/health/readiness`. Al terminar imprime la URL HTTPS de CloudFront.
+El comando crea el bucket de estado, red, EC2, IAM, S3 de artefactos y backups, Cognito, identidad SES, CloudFront y un presupuesto opcional. Luego empaqueta el estado actual del proyecto —incluidos cambios sin commit y excluyendo archivos ignorados como secretos—, lo sube a S3, escribe los secretos en Parameter Store, instala el stack, realiza las migraciones y verifica `/health/readiness`. Al terminar imprime la URL HTTPS de CloudFront.
 
 Para una cuenta Free Tier nueva, el valor por defecto usa `m7i-flex.large`, porque el stack completo no cabe de forma fiable en 1 GiB. AWS puede aplicar créditos y elegibilidad según la fecha de creación de la cuenta y región; configurá una alerta de presupuesto para evitar sorpresas:
 
@@ -31,7 +31,7 @@ Para una cuenta Free Tier nueva, el valor por defecto usa `m7i-flex.large`, porq
 npm run deploy:aws
 ```
 
-SES empieza en sandbox: verificá el email que envía AWS y solicitá salida de sandbox si necesitás notificar a destinatarios no verificados. Para eliminar todos los recursos al finalizar las pruebas ejecutá `terraform -chdir=deploy/aws/main destroy` (con la misma configuración de backend) y luego `terraform -chdir=deploy/aws/bootstrap destroy`.
+SES empieza en sandbox: verificá el email que envía AWS y solicitá salida de sandbox si necesitás notificar a destinatarios no verificados. Para eliminar todos los recursos al finalizar las pruebas ejecutá `npm run destroy:aws`; el comando pide escribir `DESTROY` y elimina también los backups, los buckets y el estado de Terraform.
 
 ***
 

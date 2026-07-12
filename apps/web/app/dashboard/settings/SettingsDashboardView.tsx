@@ -1,6 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { FiLogOut } from "react-icons/fi"
 
 import { useAuth } from "@/lib/hooks/useAuth"
@@ -9,12 +8,13 @@ import { getSettingsSections } from "@/infraestructure/constants/settingsSection
 import "./settings.scss"
 
 const SettingsDashboardView = () => {
-  const router = useRouter()
   const { logout, isLoading, user } = useAuth()
 
   const handleLogout = async () => {
     await logout()
-    router.push("/auth/login")
+    // Hard navigation: evita servir un redirect stale cacheado por el
+    // router cliente de Next.js (ver LoginView.tsx para el detalle).
+    window.location.href = "/auth/login"
   }
 
   const settingsSections = getSettingsSections(user?.signInDetails?.loginId || "") 

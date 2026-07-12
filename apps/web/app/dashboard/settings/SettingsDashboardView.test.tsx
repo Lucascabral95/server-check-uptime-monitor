@@ -1,17 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
 import SettingsDashboard from './page'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { getSettingsSections } from '@/infraestructure/constants/settingsSections.constants'
-
-const pushMock = vi.fn()
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: pushMock,
-  }),
-}))
 
 vi.mock('@/lib/hooks/useAuth', () => ({
   useAuth: vi.fn(),
@@ -57,6 +49,7 @@ const settingsMock = [
 
 describe('SettingsDashboard', () => {
   const logoutMock = vi.fn()
+  const originalLocation = window.location
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -72,6 +65,22 @@ describe('SettingsDashboard', () => {
     })
 
     mockGetSettingsSections.mockReturnValue(settingsMock)
+
+    // handleLogout usa un hard navigation (window.location.href) a propósito
+    // -- ver el comentario en SettingsDashboardView.tsx -- así que lo
+    // stubeamos para poder verificarlo sin que happy-dom intente navegar de
+    // verdad.
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...originalLocation, href: '' },
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: originalLocation,
+    })
   })
 
   it('renders settings header correctly', () => {
@@ -123,7 +132,7 @@ describe('SettingsDashboard', () => {
     })
 
     expect(logoutMock).toHaveBeenCalled()
-    expect(pushMock).toHaveBeenCalledWith('/auth/login')
+    expect(window.location.href).toBe('/auth/login')
   })
 
   it('disables logout button while loading', () => {

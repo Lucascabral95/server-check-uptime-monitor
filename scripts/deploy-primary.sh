@@ -18,7 +18,12 @@ require_command() {
 }
 
 compose() {
-  docker compose --env-file "$DEPLOY_ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  # SSM RunCommand caps captured stdout+stderr at 24,000 characters combined; the default
+  # "auto" progress renderer prints a line per image layer/build step when not attached to
+  # a TTY (which is always true under SSM), easily producing thousands of lines and pushing
+  # the real pass/fail result past that cap. Quiet progress keeps the run legible while still
+  # surfacing genuine build/pull errors.
+  docker compose --progress quiet --env-file "$DEPLOY_ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
 env_value() {
@@ -96,7 +101,13 @@ wait_for_healthy backend-uptime
 compose up -d --build --no-deps web
 wait_for_healthy web
 
-compose up -d --no-deps caddy
+
+# `up -d` alone is a no-op here when only the bind-mounted Caddyfile content
+# changed: compose's change detection hashes the service config, not mounted
+# file contents, so a stale Caddy process would keep running with its old
+# in-memory config. Force recreation so Caddy always restarts and re-reads
+# the current file.
+compose up -d --force-recreate --no-deps caddy
 
 wait_for_public_readiness
 
