@@ -29,10 +29,9 @@ const IncidentsTable = ({ data }: TableIncidentsProps) => {
             {data?.incidents.map((row, index) => (
               <tr key={index}>
                 <td>
-                  <span className="status resolved"
-                  style={{ color: row.status === "RESOLVED" ? "#2ED071" : "red" }}
-                  > 
-                    {row.status} 
+                  <span className={`status ${row.status === "RESOLVED" ? "resolved" : "ongoing"}`}>
+                    <span className="dot" />
+                    {row.status === "RESOLVED" ? "Resuelto" : "En curso"}
                   </span>
                 </td>
 
@@ -55,7 +54,7 @@ const IncidentsTable = ({ data }: TableIncidentsProps) => {
                 <td className="duration">{row.duration}</td>
 
                 <td className="visibility">
-                  <strong>{row.status}</strong>
+                  <span className="vis-badge">{row.status}</span>
                 </td>
               </tr>
             ))}

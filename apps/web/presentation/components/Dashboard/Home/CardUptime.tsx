@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { redirect, useRouter } from "next/navigation";
-import { FaCircle } from "react-icons/fa";
 import { IoReload } from "react-icons/io5";
 import { IoIosMore, IoIosCreate, IoIosTrash } from "react-icons/io";
 import { MdAccessTime, MdCheckCircle } from "react-icons/md";
@@ -11,9 +10,8 @@ import {
   formatDate,
   formatLastCheck,
   formatTimeRemaining,
-  getStatusColor,
 } from "@/presentation/utils";
-import { GetUptimeDto, ToastProps } from "@/infraestructure/interfaces";
+import { GetUptimeDto, ToastProps, Status } from "@/infraestructure/interfaces";
 import { useUptimeCheck } from "@/presentation/hooks";
 import useUpdateMonitor from "@/presentation/hooks/useUpdateMonitor.hook";
 import { TIMEOUT_TOAST } from "@/infraestructure/constants";
@@ -27,6 +25,15 @@ interface CardUptimeProps {
 
 const REDIRECT_FOR_EDIT = "/dashboard/home/monitors/";
 const REDIRECT_FOR_DETAILS = "/dashboard/home/monitors/";
+
+const STATUS_LABEL: Record<Status, string> = {
+  [Status.UP]: "Activo",
+  [Status.DOWN]: "Caído",
+  [Status.PENDING]: "Pendiente",
+  [Status.DEGRADED]: "Degradado",
+  [Status.PAUSED]: "Pausado",
+  [Status.MAINTENANCE]: "Mantenimiento",
+};
 
 const CardUptime = ({ uptimes, setToast }: CardUptimeProps) => {
   const router = useRouter();
@@ -117,10 +124,7 @@ const CardUptime = ({ uptimes, setToast }: CardUptimeProps) => {
       >
         <div className="status-icon-content-main">
           <div className="container-icon">
-            <FaCircle
-              className="icon"
-              style={{ color: getStatusColor(uptimes.status) }}
-            />
+            <span className={`dot dot-${uptimes.status.toLowerCase()}`} />
           </div>
 
           <div className="url-request-date">
@@ -137,6 +141,10 @@ const CardUptime = ({ uptimes, setToast }: CardUptimeProps) => {
         </div>
 
         <div className="more-data">
+          <span className={`pill pill-${uptimes.status.toLowerCase()}`}>
+            {STATUS_LABEL[uptimes.status]}
+          </span>
+
           <div className="check-info">
             <div className="next-check">
               <MdAccessTime className="icon" />

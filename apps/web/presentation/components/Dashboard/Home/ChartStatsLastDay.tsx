@@ -4,7 +4,7 @@ import { porcentHealthy } from '@/presentation/utils';
 import "./CardUptime.scss"
 
 interface ChartStatsLastDayProps {
-    statsUser: GetStatsUserInterface;   
+    statsUser: GetStatsUserInterface;
 }
 
 const ChartStatsLastDay = ({ statsUser }: ChartStatsLastDayProps) => {
@@ -12,33 +12,35 @@ const ChartStatsLastDay = ({ statsUser }: ChartStatsLastDayProps) => {
 
   return (
     <StructureChartStats>
-        <div className="chart-stats-container">
-                     <div className="title-chart">
-                        <p> Últimas 24 horas. </p>
-                     </div>
-                     <div className="group-stats">
-                        <div className="group">
-                          <div className="number">
-                            <p style={{ color: healthyPercent >= 50 ? "#3BD671" : "red" }}>  
-                                {healthyPercent}% 
-                                </p>
-                          </div>
-                          <div className="text">
-                            <p> Actividad general </p>
-                          </div>
-                        </div>
-                        <div className="group">
-                          <div className="number">
-                            <p style={{ color: statsUser.downLast24hCount > 0 ? "red" : "#ffffff" }}>
-                                 {statsUser.downLast24hCount}
-                                  </p>
-                          </div>
-                          <div className="text">
-                            <p>Incidentes</p>
-                          </div>
-                        </div>
-                     </div>
+        <div className="hours-card">
+            <div className="hours-card-title">
+                <p>Últimas 24 horas</p>
+            </div>
+            <div className="hours-card-body">
+                <div className="hours-stat">
+                    <span
+                        className="hours-stat-value"
+                        style={{ color: healthyPercent >= 50 ? "var(--color-up)" : "var(--color-down)" }}
+                    >
+                        {healthyPercent}%
+                    </span>
+                    <span className="hours-stat-label">Actividad general</span>
                 </div>
+                <div className="hours-stat">
+                    <span
+                        className="hours-stat-value"
+                        style={{ color: statsUser.downLast24hCount > 0 ? "var(--color-down)" : "var(--color-text-primary)" }}
+                    >
+                        {statsUser.downLast24hCount}
+                    </span>
+                    <span className="hours-stat-label">Incidentes</span>
+                </div>
+                <div className="hours-stat">
+                    <span className="hours-stat-value">{statsUser.pending}</span>
+                    <span className="hours-stat-label">Pendientes</span>
+                </div>
+            </div>
+        </div>
     </StructureChartStats>
   )
 }

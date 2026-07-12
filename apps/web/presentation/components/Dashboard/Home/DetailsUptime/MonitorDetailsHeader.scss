@@ -1,174 +1,8 @@
-// $border-color: rgba(255, 255, 255, 0.07);
-// $text-primary: #e7edf7;
-// $text-muted-dark: #6f819c;
-// $accent-green: #58e06d;
-// $accent-blue: #5766ff;
-
-// .monitor-details-header {
-//   display: flex;
-//   justify-content: space-between;
-//   align-items: center;
-//   margin: 2rem 0;
-//   gap: 16px;
-//   width: 100%;
-//   max-width: 100%;
-//   box-sizing: border-box;
-
-//   @media (max-width: 768px) {
-//     flex-direction: column;
-//     align-items: flex-start;
-//   }
-
-//   .left {
-//     display: flex;
-//     align-items: flex-start;
-//     gap: 14px;
-//     min-width: 0;
-//   }
-
-//   .status {
-//     display: flex;
-//     align-items: center;
-//     flex-shrink: 0;
-
-//     .status-icon {
-//       font-size: 34px;
-
-//       &.up {
-//         color: $accent-green;
-//       }
-
-//       &.down {
-//         color: #ff5f5f;
-//       }
-
-//       @media (max-width: 640px) {
-//         font-size: 28px;
-//       }
-//     }
-//   }
-
-//   .info {
-//     display: flex;
-//     flex-direction: column;
-//     min-width: 0;
-
-//     .title-row {
-//       display: flex;
-//       align-items: center;
-//       gap: 8px;
-//       flex-wrap: wrap;
-
-//       h2 {
-//         font-size: 24px;
-//         font-weight: 600;
-//         color: $text-primary;
-//         word-break: break-all;
-
-//         @media (max-width: 640px) {
-//           font-size: 18px;
-//         }
-//       }
-
-//       .open-icon {
-//         font-size: 15px;
-//         color: $text-muted-dark;
-//         cursor: pointer;
-
-//         &:hover {
-//           color: $text-primary;
-//         }
-//       }
-//     }
-
-//     .meta {
-//       display: flex;
-//       align-items: center;
-//       flex-wrap: wrap;
-//       gap: 6px;
-//       margin-top: 4px;
-//       font-size: 15px;
-
-//       .type {
-//         font-weight: 600;
-//         color: $text-primary;
-//       }
-
-//       .label {
-//         color: $text-muted-dark;
-//       }
-
-//       .url {
-//         color: $accent-green;
-//         cursor: pointer;
-//         word-break: break-all;
-
-//         &:hover {
-//           text-decoration: underline;
-//         }
-//       }
-
-//       @media (max-width: 640px) {
-//         font-size: 13px;
-//       }
-//     }
-//   }
-
-//   .actions {
-//     display: flex;
-//     gap: 8px;
-//     flex-shrink: 0;
-//     width: 100%;
-//     box-sizing: border-box;
-
-//     @media (max-width: 480px) {
-//       flex-direction: column;
-//     }
-
-//     .btn {
-//       display: flex;
-//       align-items: center;
-//       gap: 8px;
-//       padding: 8px 14px;
-//       border-radius: 6px;
-//       background: #2d3340;
-//       border: none;
-//       color: #fff;
-//       font-size: 15px;
-//       cursor: pointer;
-//       text-decoration: none;
-//       max-width: 100%;
-//       box-sizing: border-box;
-
-//       .icon {
-//         font-size: 16px;
-//         color: #677791;
-//       }
-
-//       &:hover {
-//         opacity: 0.85;
-//       }
-
-//       @media (max-width: 480px) {
-//         width: 100%;
-//         justify-content: center;
-//       }
-//     }
-//   }
-// }
-
-
-$border-color: rgba(255, 255, 255, 0.07);
-$text-primary: #e7edf7;
-$text-muted-dark: #6f819c;
-$accent-green: #58e06d;
-$accent-blue: #5766ff;
-
 .monitor-details-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 2rem 0;
+  margin: 0 0 1.75rem;
   gap: 16px;
   width: 100%;
   max-width: 100%;
@@ -181,7 +15,7 @@ $accent-blue: #5766ff;
 
   .left {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 14px;
     min-width: 0;
     flex: 1;
@@ -190,21 +24,22 @@ $accent-blue: #5766ff;
   .status {
     display: flex;
     align-items: center;
+    justify-content: center;
     flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background: var(--color-up-subtle);
 
     .status-icon {
-      font-size: 34px;
+      font-size: 18px;
 
       &.up {
-        color: $accent-green;
+        color: var(--color-up);
       }
 
       &.down {
-        color: #ff5f5f;
-      }
-
-      @media (max-width: 640px) {
-        font-size: 28px;
+        color: var(--color-down);
       }
     }
   }
@@ -221,10 +56,11 @@ $accent-blue: #5766ff;
       flex-wrap: wrap;
 
       h2 {
-        font-size: 24px;
-        font-weight: 600;
-        color: $text-primary;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--color-text-primary);
         word-break: break-all;
+        letter-spacing: -0.02em;
 
         @media (max-width: 640px) {
           font-size: 18px;
@@ -232,12 +68,12 @@ $accent-blue: #5766ff;
       }
 
       .open-icon {
-        font-size: 15px;
-        color: $text-muted-dark;
+        font-size: 14px;
+        color: var(--color-text-muted);
         cursor: pointer;
 
         &:hover {
-          color: $text-primary;
+          color: var(--color-text-primary);
         }
       }
     }
@@ -248,19 +84,19 @@ $accent-blue: #5766ff;
       flex-wrap: wrap;
       gap: 6px;
       margin-top: 4px;
-      font-size: 15px;
+      font-size: 13.5px;
 
       .type {
         font-weight: 600;
-        color: $text-primary;
+        color: var(--color-text-primary);
       }
 
       .label {
-        color: $text-muted-dark;
+        color: var(--color-text-secondary);
       }
 
       .url {
-        color: $accent-green;
+        color: var(--color-text-link);
         cursor: pointer;
         word-break: break-all;
 
@@ -277,11 +113,11 @@ $accent-blue: #5766ff;
 
   .actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     flex-shrink: 0;
 
     @media (max-width: 768px) {
-      width: 100%; 
+      width: 100%;
     }
 
     @media (max-width: 480px) {
@@ -289,27 +125,35 @@ $accent-blue: #5766ff;
     }
 
     .btn {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-radius: 6px;
-      background: #2d3340;
-      border: none;
-      color: #fff;
-      font-size: 15px;
+      gap: 7px;
+      padding: 9px 14px;
+      border-radius: var(--radius-md);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
       text-decoration: none;
-      white-space: nowrap; 
+      white-space: nowrap;
       box-sizing: border-box;
+      transition: all 0.15s ease;
 
       .icon {
-        font-size: 16px;
-        color: #677791;
+        font-size: 14px;
+        color: inherit;
       }
 
       &:hover {
-        opacity: 0.85;
+        color: var(--color-text-primary);
+        border-color: var(--color-border-strong);
+      }
+
+      &.delete:hover {
+        color: #ff8b85;
+        border-color: rgba(248, 81, 73, 0.4);
       }
 
       @media (max-width: 480px) {

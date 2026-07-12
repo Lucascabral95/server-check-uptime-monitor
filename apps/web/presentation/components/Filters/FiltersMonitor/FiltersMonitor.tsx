@@ -108,10 +108,10 @@ const FiltersMonitor = memo(({
           >
             <CiFilter
               className="icon-filter"
-              style={{ color: openFilter ? "#3BD671" : "#ffffff" }}
+              style={{ color: openFilter ? "var(--color-up)" : "var(--color-text-primary)" }}
             />
             <span
-              style={{ color: openFilter ? "#3BD671" : "#ffffff" }}
+              style={{ color: openFilter ? "var(--color-up)" : "var(--color-text-primary)" }}
               className="text-filter"
             >
               Filtrar
@@ -138,10 +138,10 @@ const FiltersMonitor = memo(({
           >
             <MdOutlineSwapVert
               className="icon-filter"
-              style={{ color: openFilterSort ? "#3BD671" : "#ffffff" }}
+              style={{ color: openFilterSort ? "var(--color-up)" : "var(--color-text-primary)" }}
             />
             <span
-              style={{ color: openFilterSort ? "#3BD671" : "#ffffff" }}
+              style={{ color: openFilterSort ? "var(--color-up)" : "var(--color-text-primary)" }}
               className="text-filter"
             >
               Ordenar

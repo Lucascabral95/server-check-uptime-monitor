@@ -105,10 +105,10 @@ const FiltersIncidents = memo(({
                     >
                         <MdOutlineSwapVert
                             className="icon-filter"
-                            style={{ color: openSortDropdown ? "#3BD671" : "#ffffff" }}
+                            style={{ color: openSortDropdown ? "var(--color-up)" : "var(--color-text-primary)" }}
                         />
                         <span
-                            style={{ color: openSortDropdown ? "#3BD671" : "#ffffff" }}
+                            style={{ color: openSortDropdown ? "var(--color-up)" : "var(--color-text-primary)" }}
                             className="text-filter"
                         >
                             Ordenar

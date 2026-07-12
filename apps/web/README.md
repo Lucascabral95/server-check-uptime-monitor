@@ -132,7 +132,6 @@ apps/web/
 │   │   │       ├── CardUptime.tsx          # Card de monitor
 │   │   │       ├── StatusUptimes.tsx       # Lista de estados
 │   │   │       ├── ChartStatsLastDay.tsx   # Gráfico último día
-│   │   │       ├── MenuDropdownCardUptime.tsx
 │   │   │       └── DetailsUptime/          # Componentes de detalles
 │   │   │           ├── MonitorStatsOverview.tsx
 │   │   │           ├── LatestIncidents.tsx
@@ -195,7 +194,6 @@ apps/web/
 │       ├── formatInterval.utils.ts         # Formato de intervalo
 │       ├── formatLastCheck.utils.ts        # Último check
 │       ├── formatTimeRemaining.utils.ts    # Tiempo restante
-│       ├── getStatusColor.utils.ts         # Color por estado
 │       ├── jwt.utils.ts                    # Utilidades JWT
 │       ├── decodeTokenJwt.utils.ts         # Decodificar JWT
 │       ├── porcentHealthy.utils.ts         # Porcentaje salud

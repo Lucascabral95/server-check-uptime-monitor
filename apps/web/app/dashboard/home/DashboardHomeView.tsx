@@ -84,6 +84,7 @@ const DashboardHome = () => {
               onSuccess: () => setShowWizard(false),
             })
           }
+          onCancel={() => setShowWizard(false)}
           submitting={createUptime.isPending}
         />
       )}

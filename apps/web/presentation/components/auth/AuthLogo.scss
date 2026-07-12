@@ -1,0 +1,129 @@
+.auth-logo {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border-subtle);
+    flex-shrink: 0;
+    text-decoration: none;
+
+    .logo-container {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.75rem;
+        position: relative;
+    }
+
+    .logo-icon-badge {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        border-radius: var(--radius-md);
+        background-color: var(--color-brand);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .logo-icon {
+            color: var(--color-text-primary);
+            font-size: 1.05rem;
+        }
+    }
+
+    .logo-name {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--color-text-primary);
+        display: block;
+        white-space: nowrap;
+    }
+
+    .status-indicator {
+        display: flex;
+        margin-left: auto;
+    }
+
+    .status-dot {
+        width: 0.6rem;
+        height: 0.6rem;
+        background-color: var(--color-up);
+        border-radius: var(--radius-full);
+        box-shadow: 0 0 0 2px var(--color-up-subtle);
+        animation: auth-logo-pulse 2s ease-in-out infinite;
+    }
+}
+
+@keyframes auth-logo-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(59, 214, 113, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(59, 214, 113, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(59, 214, 113, 0);
+    }
+}
+
+@media (min-width: 481px) and (max-width: 1365px) {
+    .auth-logo {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+
+        .logo-container {
+            justify-content: center;
+            position: relative;
+            width: fit-content;
+        }
+
+        .logo-name {
+            display: none;
+        }
+
+        .status-indicator {
+            display: flex;
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            z-index: 10;
+            margin-left: 0;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border: 2px solid var(--color-bg-canvas);
+        }
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-logo {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        height: 60px;
+        background-color: var(--color-bg-canvas);
+        border-bottom: 1px solid var(--color-border-subtle);
+        z-index: 50;
+        margin: 0;
+        padding: 0 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .logo-container {
+            justify-content: center;
+        }
+
+        .logo-name {
+            font-size: 1.05rem;
+            display: block;
+        }
+
+        .status-indicator {
+            display: none;
+        }
+    }
+}

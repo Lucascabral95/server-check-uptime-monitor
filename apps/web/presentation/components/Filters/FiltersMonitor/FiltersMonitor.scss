@@ -1,14 +1,4 @@
-@use "sass:color";
-
-$bg-main: #1c2434;
-$bg-soft: #131a25;
-$bg-hover: #2d3748;
-$border: #2d3748;
-$accent: #3bd671;
-$accent-soft: rgba(59, 214, 113, 0.12);
-$text-main: #ffffff;
-$text-muted: #94a3b8;
-$radius: 12px;
+$radius: var(--radius-md);
 
 .filter-container {
   width: 100%;
@@ -16,7 +6,7 @@ $radius: 12px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin: 2rem 0;
+  margin: 1.5rem 0;
 }
 
 .filter {
@@ -29,12 +19,12 @@ $radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, #1f293b, #131a25);
+    background-color: var(--color-bg-surface);
     border-radius: $radius;
-    border: 1px solid $border;
+    border: 1px solid var(--color-border);
 
     span {
-      color: $text-main;
+      color: var(--color-text-primary);
       font-size: 14px;
       font-weight: 600;
     }
@@ -58,19 +48,19 @@ $radius: 12px;
       height: 44px;
       padding: 0 46px 0 16px;
       border-radius: $radius;
-      border: 1px solid $border;
-      background-color: $bg-soft;
-      color: $text-main;
+      border: 1px solid var(--color-border);
+      background-color: var(--color-bg-surface);
+      color: var(--color-text-primary);
       font-size: 14px;
 
       &::placeholder {
-        color: $text-muted;
+        color: var(--color-text-muted);
       }
 
       &:focus {
         outline: none;
-        border-color: $accent;
-        box-shadow: 0 0 0 3px rgba(59, 214, 113, 0.18);
+        border-color: var(--color-brand);
+        box-shadow: 0 0 0 3px var(--color-brand-subtle);
       }
     }
 
@@ -81,10 +71,10 @@ $radius: 12px;
       transform: translateY(-50%);
       width: 24px;
       height: 24px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       border: none;
-      background-color: $bg-hover;
-      color: $text-muted;
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-muted);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -96,8 +86,8 @@ $radius: 12px;
       }
 
       &:hover {
-        background-color: $accent;
-        color: #0f172a;
+        background-color: var(--color-brand);
+        color: var(--color-text-primary);
       }
     }
   }
@@ -115,21 +105,21 @@ $radius: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(180deg, #1f293b, #131a25);
+  background-color: var(--color-bg-surface);
   border-radius: $radius;
-  border: 1px solid $border;
+  border: 1px solid var(--color-border);
   cursor: pointer;
   transition: all 0.2s ease;
 
   .icon-filter {
     font-size: 18px;
-    color: $text-main;
+    color: var(--color-text-primary);
   }
 
   .text-filter {
     font-size: 14px;
     font-weight: 600;
-    color: $text-main;
+    color: var(--color-text-primary);
   }
 
   .filter-badge {
@@ -139,9 +129,9 @@ $radius: 12px;
     min-width: 18px;
     height: 18px;
     padding: 0 5px;
-    border-radius: 9px;
-    background-color: $accent;
-    color: #0f172a;
+    border-radius: var(--radius-full);
+    background-color: var(--color-brand);
+    color: var(--color-text-primary);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -152,19 +142,19 @@ $radius: 12px;
   .sort-indicator {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    background-color: $accent;
+    border-radius: var(--radius-full);
+    background-color: var(--color-brand);
   }
 
   &:hover {
-    background: linear-gradient(180deg, #273244, #1b2230);
-    border-color: color.adjust($border, $lightness: 10%);
+    background-color: var(--color-bg-surface-hover);
+    border-color: var(--color-border-strong);
   }
 
   &.has-filters,
   &.has-sort {
-    border-color: $accent;
-    box-shadow: 0 0 0 2px rgba(59, 214, 113, 0.18);
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 2px var(--color-brand-subtle);
   }
 }
 
@@ -179,11 +169,11 @@ $radius: 12px;
 
 .filter-monitor-inside .container,
 .sort-monitor-inside .container {
-  background-color: $bg-main;
-  border-radius: 16px;
-  border: 1px solid $border;
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
   padding: 18px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-elevated);
 }
 
 .title-close {
@@ -193,7 +183,7 @@ $radius: 12px;
   margin-bottom: 16px;
 
   .text-filter span {
-    color: $text-main;
+    color: var(--color-text-primary);
     font-size: 15px;
     font-weight: 600;
   }
@@ -201,8 +191,8 @@ $radius: 12px;
   .button {
     width: 30px;
     height: 30px;
-    border-radius: 8px;
-    background-color: $bg-soft;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-inset);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -210,11 +200,11 @@ $radius: 12px;
 
     .icon {
       font-size: 16px;
-      color: $text-main;
+      color: var(--color-text-primary);
     }
 
     &:hover {
-      background-color: $bg-hover;
+      background-color: var(--color-bg-surface-hover);
     }
   }
 }
@@ -231,24 +221,44 @@ $radius: 12px;
   align-items: center;
   gap: 12px;
   padding: 14px;
-  border-radius: 10px;
-  background-color: $bg-soft;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-inset);
   cursor: pointer;
   border: 1px solid transparent;
 
+  .status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+
+    &.up {
+      background-color: var(--color-up);
+    }
+
+    &.down {
+      background-color: var(--color-down);
+    }
+  }
+
+  .status-icon-all {
+    color: var(--color-text-muted);
+    font-size: 14px;
+  }
+
   span {
-    color: $text-main;
+    color: var(--color-text-primary);
     font-size: 14px;
     font-weight: 500;
   }
 
   &:hover {
-    background-color: $bg-hover;
+    background-color: var(--color-bg-surface-hover);
   }
 
   &.active {
-    background-color: $accent-soft;
-    border-color: $accent;
+    background-color: var(--color-brand-subtle);
+    border-color: var(--color-brand);
   }
 }
 
@@ -263,7 +273,7 @@ $radius: 12px;
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: $text-muted;
+  color: var(--color-text-muted);
   text-transform: uppercase;
 }
 
@@ -272,24 +282,24 @@ $radius: 12px;
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  border-radius: 10px;
-  background-color: $bg-soft;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-inset);
   cursor: pointer;
   border: 1px solid transparent;
 
   span {
-    color: $text-main;
+    color: var(--color-text-primary);
     font-size: 14px;
     font-weight: 500;
   }
 
   &:hover {
-    background-color: $bg-hover;
+    background-color: var(--color-bg-surface-hover);
   }
 
   &.active {
-    background-color: $accent-soft;
-    border-color: $accent;
+    background-color: var(--color-brand-subtle);
+    border-color: var(--color-brand);
   }
 }
 
@@ -300,7 +310,7 @@ $radius: 12px;
   button {
     flex: 1;
     height: 44px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     border: none;
     font-size: 14px;
     font-weight: 600;
@@ -308,20 +318,20 @@ $radius: 12px;
   }
 
   .btn-cancel {
-    background-color: $bg-soft;
-    color: $text-main;
+    background-color: var(--color-bg-inset);
+    color: var(--color-text-primary);
 
     &:hover {
-      background-color: $bg-hover;
+      background-color: var(--color-bg-surface-hover);
     }
   }
 
   .btn-apply {
-    background-color: $accent;
-    color: #0f172a;
+    background-color: var(--color-brand);
+    color: var(--color-text-primary);
 
     &:hover {
-      background-color: #2bc060;
+      background-color: var(--color-brand-hover);
     }
   }
 }

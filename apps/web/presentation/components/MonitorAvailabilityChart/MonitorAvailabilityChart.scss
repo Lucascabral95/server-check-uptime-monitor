@@ -1,2 +1,21 @@
-.availability-chart { min-height: 9rem; padding: 1rem; border-radius: .75rem; background: #171b24; color: #9ca6b8; }
-.availability-chart svg { width: 100%; height: 7rem; display: block; }
+.availability-chart {
+  min-height: 9rem;
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-muted);
+  margin: 16px 0;
+}
+
+.availability-chart svg {
+  width: 100%;
+  height: 7rem;
+  display: block;
+}
+
+.availability-chart small {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}

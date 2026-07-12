@@ -1,15 +1,66 @@
-.incidents-page {
+.incidents-dashboard {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
 }
 
-.incidents-header {
+.title-incidents {
+  margin-bottom: 24px;
+
   h1 {
-    color: #ffffff;
-    font-size: 28px;
+    color: var(--color-text-primary);
+    font-size: 1.75rem;
     font-weight: 700;
+    letter-spacing: -0.02em;
     margin: 0;
   }
+}
+
+.incidents-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.incidents-stats .stat-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .value {
+    font-size: 1.625rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+
+    &.up {
+      color: var(--color-up);
+    }
+
+    &.down {
+      color: var(--color-down);
+    }
+  }
+}
+
+.filter-current {
+  margin-bottom: 20px;
 }
