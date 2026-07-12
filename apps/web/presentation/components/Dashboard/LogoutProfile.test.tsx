@@ -1,33 +1,32 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import LogoutProfile from './LogoutProfile'
-
-vi.mock('next/navigation', () => ({
-  useRouter: vi.fn()
-}))
 
 vi.mock('@/lib/hooks/useAuth', () => ({
   useAuth: vi.fn()
 }))
 
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 
-const mockPush = vi.fn()
-
 describe('LogoutProfile', () => {
+  const originalLocation = window.location
+
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(useRouter).mockReturnValue({
-      push: mockPush,
-      replace: vi.fn(),
-      prefetch: vi.fn(),
-      back: vi.fn(),
-      pathname: '/dashboard',
-      query: {},
-      asPath: '',
-      reload: vi.fn()
-    } as any)
+    // handleLogout usa un hard navigation (window.location.href) a propósito
+    // -- ver el comentario en LogoutProfile.tsx -- así que lo stubeamos para
+    // poder verificarlo sin que happy-dom intente navegar de verdad.
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...originalLocation, href: '' },
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: originalLocation,
+    })
   })
 
   vi.mocked(useAuth).mockReturnValue({
@@ -84,7 +83,7 @@ describe('LogoutProfile', () => {
 
     await waitFor(() => {
       expect(mockLogout).toHaveBeenCalledTimes(1)
-      expect(mockPush).toHaveBeenCalledWith('/auth/login')
+      expect(window.location.href).toBe('/auth/login')
     })
   })
 

@@ -72,10 +72,12 @@ resource "aws_security_group" "ec2" {
 }
 
 resource "aws_s3_bucket" "artifacts" {
-  bucket = local.artifact_bucket
+  bucket        = local.artifact_bucket
+  force_destroy = true
 }
 resource "aws_s3_bucket" "backups" {
-  bucket = local.backup_bucket
+  bucket        = local.backup_bucket
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "private" {

@@ -1,16 +1,17 @@
 "use client"
 
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import "./DashboardComponents.scss"
 
 const LogoutProfile = () => {
-    const router = useRouter()
       const { logout, isLoading, user } = useAuth()
-    
+
       const handleLogout = async () => {
         await logout()
-        router.push('/auth/login')
+        // Hard navigation: evita servir un redirect stale cacheado por el
+        // router cliente de Next.js de cuando /auth/login se pudo haber
+        // prefetcheado en un estado de auth distinto (ver LoginView.tsx).
+        window.location.href = '/auth/login'
       }
 
   return (

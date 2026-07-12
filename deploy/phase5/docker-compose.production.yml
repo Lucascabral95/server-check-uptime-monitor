@@ -83,7 +83,12 @@ services:
     mem_limit: 768m
     cpus: 1.0
     pids_limit: 256
-    networks: [internal]
+    # `internal` (ver el bloque `networks:` al final del archivo) no tiene ruta
+    # de salida a Internet a propósito. backend-uptime sí la necesita: JwtAuthGuard
+    # trae el JWKS de Cognito por HTTPS pública, y EmailService llama a la API de
+    # SES / SMTP de Gmail. `edge` no está marcada `internal`, así que da esa salida
+    # sin exponer ningún puerto nuevo hacia afuera (backend-uptime sigue sin `ports:`).
+    networks: [internal, edge]
 
   web:
     build:

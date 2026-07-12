@@ -13,7 +13,7 @@ export function PasswordRequirementsIndicator({ password }: PasswordRequirements
   const requirements = getPasswordRequirements(password);
 
   const items = [
-    { key: 'minLength', label: 'Mínimo 8 caracteres', met: requirements.minLength },
+    { key: 'minLength', label: 'Mínimo 12 caracteres', met: requirements.minLength },
     { key: 'hasUpperCase', label: 'Una mayúscula (A-Z)', met: requirements.hasUpperCase },
     { key: 'hasLowerCase', label: 'Una minúscula (a-z)', met: requirements.hasLowerCase },
     { key: 'hasNumber', label: 'Un número (0-9)', met: requirements.hasNumber },

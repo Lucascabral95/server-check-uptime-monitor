@@ -13,7 +13,7 @@ describe('PasswordRequirementsIndicator', () => {
   it('should render all requirements when password has value', () => {
     render(<PasswordRequirementsIndicator password="a" />);
 
-    expect(screen.getByText('Mínimo 8 caracteres')).toBeInTheDocument();
+    expect(screen.getByText('Mínimo 12 caracteres')).toBeInTheDocument();
     expect(screen.getByText('Una mayúscula (A-Z)')).toBeInTheDocument();
     expect(screen.getByText('Una minúscula (a-z)')).toBeInTheDocument();
     expect(screen.getByText('Un número (0-9)')).toBeInTheDocument();
@@ -27,13 +27,13 @@ describe('PasswordRequirementsIndicator', () => {
   });
 
   it('should show strong password when all requirements are met', () => {
-    render(<PasswordRequirementsIndicator password="StrongP@ss1" />);
+    render(<PasswordRequirementsIndicator password="StrongP@ss12" />);
 
     expect(screen.getByText('✓ Contraseña segura')).toBeInTheDocument();
   });
 
   it('should show met status for minLength', () => {
-    const { container } = render(<PasswordRequirementsIndicator password="12345678" />);
+    const { container } = render(<PasswordRequirementsIndicator password="123456789012" />);
 
     const listItems = container.querySelectorAll('li');
     const minLengthItem = listItems[0]; 
@@ -65,7 +65,7 @@ describe('PasswordRequirementsIndicator', () => {
   });
 
   it('should show all requirements met for valid password', () => {
-    const { container } = render(<PasswordRequirementsIndicator password="ValidP@ss1" />);
+    const { container } = render(<PasswordRequirementsIndicator password="ValidP@ss123" />);
 
     const allMetItems = container.querySelectorAll('.requirement-met');
     expect(allMetItems.length).toBe(5);
@@ -75,7 +75,7 @@ describe('PasswordRequirementsIndicator', () => {
     const { container } = render(<PasswordRequirementsIndicator password="ABCDEFGH" />);
 
     const unmetItems = container.querySelectorAll('.requirement-unmet');
-    // "ABCDEFGH" has: minLength (met), hasUpperCase (met), but missing: lowercase, number, special
-    expect(unmetItems.length).toBe(3);
+    // "ABCDEFGH" (8 chars) has: hasUpperCase (met), but missing: minLength (needs 12), lowercase, number, special
+    expect(unmetItems.length).toBe(4);
   });
 });

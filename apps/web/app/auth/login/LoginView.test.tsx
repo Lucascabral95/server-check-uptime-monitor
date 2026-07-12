@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useRouter } from 'next/navigation';
 
 import Login from './page';
 import { useAuth } from '@/lib/hooks/useAuth';
 
+// LoginView.tsx en sí ya no usa next/navigation, pero AuthCard (el footer
+// "Registrate") sigue llamando useRouter() internamente y crashea sin este
+// mock ("invariant expected app router to be mounted").
 vi.mock('next/navigation');
 vi.mock('@/lib/hooks/useAuth');
 
@@ -25,19 +27,30 @@ vi.mock('@/presentation/components/auth/LoginForm', () => ({
 }));
 
 describe('Login Page', () => {
-  const mockPush = vi.fn();
   const mockLogin = vi.fn();
+  const originalLocation = window.location;
 
   beforeEach(() => {
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush } as any);
     vi.mocked(useAuth).mockReturnValue({
       error: null,
       isLoading: false,
       login: mockLogin,
     } as any);
+
+    // handleLogin usa un hard navigation (window.location.href) a propósito
+    // -- ver el comentario en LoginView.tsx -- así que lo stubeamos para
+    // poder verificarlo sin que happy-dom intente navegar de verdad.
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...originalLocation, href: '' },
+    });
   });
 
   afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: originalLocation,
+    });
     vi.clearAllMocks();
   });
 
@@ -77,7 +90,7 @@ describe('Login Page', () => {
     await user.click(submitButton);
 
     expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123');
-    expect(mockPush).toHaveBeenCalledWith('/dashboard/home');
+    expect(window.location.href).toBe('/dashboard/home');
   });
 
   it('displays error when login fails', () => {

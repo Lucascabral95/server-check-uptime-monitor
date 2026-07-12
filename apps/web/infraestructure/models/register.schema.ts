@@ -10,7 +10,7 @@ export const registerSchema = z
     password: z
       .string()
       .min(1, 'La contraseña es requerida')
-      .min(8, 'Mínimo 8 caracteres')
+      .min(12, 'Mínimo 12 caracteres')
       .regex(/[A-Z]/, 'Debe tener al menos una mayúscula (A-Z)')
       .regex(/[a-z]/, 'Debe tener al menos una minúscula (a-z)')
       .regex(/[0-9]/, 'Debe tener al menos un número (0-9)')
@@ -30,7 +30,7 @@ export type RegisterFormData = z.infer<typeof registerSchema>;
 // Utilidad para obtener los requisitos de contraseña
 export const getPasswordRequirements = (password: string) => {
   return {
-    minLength: password.length >= 8,
+    minLength: password.length >= 12,
     hasUpperCase: /[A-Z]/.test(password),
     hasLowerCase: /[a-z]/.test(password),
     hasNumber: /[0-9]/.test(password),
