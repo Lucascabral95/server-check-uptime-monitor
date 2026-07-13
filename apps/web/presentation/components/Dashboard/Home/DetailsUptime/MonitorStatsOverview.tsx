@@ -17,11 +17,11 @@ const MonitorStatsOverview = ({ monitor, stats24h }: MonitorStatsOverviewProps) 
       <div className="stats-row">
         <div className="stat-card">
           <span className="label">Estado actual</span>
-          <span 
+          <span
            style={{
-            color: monitor?.monitor?.status === "UP" ? "#28a745" : "#dc3545",
+            color: monitor?.monitor?.status === "UP" ? "var(--color-up)" : "var(--color-down)",
            }}
-          className="status up"> 
+          className="status up">
             {monitor?.monitor?.status}
              </span>
           <span className="sub">

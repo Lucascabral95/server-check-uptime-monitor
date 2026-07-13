@@ -1,26 +1,14 @@
-$bg-card: #1a2130;
-$border-color: rgba(255, 255, 255, 0.07);
-$text-primary: #e7edf7;
-$text-muted: #93a4bd;
-$text-muted-dark: #6f819c;
-$accent-green: #58e06d;
-$accent-red: #ff5f5f;
-
 .latest-incidents {
   width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
   box-sizing: border-box;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.03),
-    rgba(255, 255, 255, 0.015)
-  );
-  border: 1px solid $border-color;
-  border-radius: 14px;
-  padding: 20px;
-  margin: 2rem 0;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px 24px;
 
   .header {
     display: flex;
@@ -28,26 +16,27 @@ $accent-red: #ff5f5f;
     align-items: center;
     gap: 12px;
     min-width: 0;
+    margin-bottom: 14px;
 
     h3 {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 600;
-      color: $text-primary;
+      color: var(--color-text-primary);
       white-space: nowrap;
     }
 
     .export-btn {
-      background: #2d3340;
-      border: none;
-      color: $text-primary;
+      background: var(--color-bg-inset);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-primary);
       font-size: 13px;
       padding: 8px 12px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       white-space: nowrap;
 
       &:hover {
-        opacity: 0.85;
+        background: var(--color-bg-surface-hover);
       }
     }
 
@@ -73,23 +62,25 @@ $accent-red: #ff5f5f;
     thead {
       th {
         text-align: left;
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 600;
-        color: $text-muted;
-        padding: 12px 8px;
-        border-bottom: 1px solid $border-color;
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--color-border);
         white-space: nowrap;
       }
     }
 
     tbody {
       tr {
-        border-bottom: 1px solid $border-color;
+        border-bottom: 1px solid var(--color-border-subtle);
 
         td {
-          padding: 14px 8px;
-          font-size: 14px;
-          color: $text-primary;
+          padding: 12px 10px;
+          font-size: 13px;
+          color: var(--color-text-primary);
           vertical-align: middle;
           max-width: 0;
           overflow: hidden;
@@ -103,18 +94,19 @@ $accent-red: #ff5f5f;
   .status {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-weight: 600;
+    font-size: 12.5px;
 
     &.resolved {
-      color: $accent-green;
+      color: var(--color-down);
     }
 
     .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: $accent-green;
+      width: 6px;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background: var(--color-down);
       flex-shrink: 0;
     }
   }
@@ -122,17 +114,18 @@ $accent-red: #ff5f5f;
   .cause {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
 
     .code {
-      font-size: 11px;
-      font-weight: 700;
-      background: $accent-red;
-      color: white;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      background: var(--color-bg-inset);
+      color: var(--color-text-secondary);
       padding: 2px 6px;
       border-radius: 4px;
-      line-height: 1;
+      line-height: 1.4;
       flex-shrink: 0;
     }
 
@@ -146,21 +139,27 @@ $accent-red: #ff5f5f;
   .started,
   .duration {
     font-size: 13px;
-    color: $text-muted-dark;
+    color: var(--color-text-muted);
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--color-text-muted);
   }
 
   .load-more {
     width: 100%;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid $border-color;
-    color: $text-primary;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
     font-size: 13px;
     padding: 10px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     cursor: pointer;
+    margin-top: 14px;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.5);
+      background: var(--color-bg-surface-hover);
     }
   }
 }

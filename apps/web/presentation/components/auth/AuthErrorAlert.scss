@@ -5,13 +5,11 @@
 .error-content {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  border: 1px solid #fecaca;
-  border-left: 4px solid #ef4444;
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.1), 0 2px 4px -1px rgba(239, 68, 68, 0.06);
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--color-down-subtle);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: var(--radius-md);
   animation: errorSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -28,17 +26,18 @@
 
 .error-icon-wrapper {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .error-icon {
-  width: 20px;
-  height: 20px;
-  color: #dc2626;
+  width: 16px;
+  height: 16px;
+  color: #ff8b85;
 }
 
 .error-text {
@@ -47,17 +46,17 @@
 }
 
 .error-title {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: #991b1b;
-  margin-bottom: 0.25rem;
+  color: #ff8b85;
+  margin-bottom: 0.2rem;
   line-height: 1.25;
 }
 
 .error-message {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 400;
-  color: #b91c1c;
+  color: #ff8b85;
   line-height: 1.4;
   word-break: break-word;
 }

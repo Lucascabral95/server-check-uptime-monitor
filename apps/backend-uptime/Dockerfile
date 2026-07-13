@@ -38,7 +38,7 @@ RUN npm ci --omit=dev --install-strategy=nested --workspace=backend-uptime --inc
   && npm cache clean --force
 
 COPY --from=build /workspace/apps/backend-uptime/dist ./apps/backend-uptime/dist
-COPY --from=build /workspace/apps/backend-uptime/node_modules/.prisma ./apps/backend-uptime/node_modules/.prisma
+COPY --from=build /workspace/node_modules/.prisma ./node_modules/.prisma
 
 USER node
 

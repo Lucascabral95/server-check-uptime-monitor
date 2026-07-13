@@ -38,6 +38,11 @@
     "nodemailer": "^9.0.3",
     "react-hook-form": "^7.71.1"
   },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.1.5",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.1.18",
+    "lightningcss-linux-x64-gnu": "1.30.2"
+  },
   "overrides": {
     "anymatch": {
       "picomatch": "^2.3.2"

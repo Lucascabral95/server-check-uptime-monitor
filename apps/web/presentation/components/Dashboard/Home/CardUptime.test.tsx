@@ -28,7 +28,6 @@ vi.mock("@/presentation/utils", () => ({
   formatDate: () => "2024-01-15",
   formatLastCheck: () => "Hace 1 minuto",
   formatTimeRemaining: () => "1m",
-  getStatusColor: () => "green",
 }));
 
 const mockSetToast = vi.fn();

@@ -37,10 +37,30 @@ const IncidentsDashboardView = () => {
     );
   }
 
+  const resolvedCount = Math.max(
+    (data?.totalIncidents ?? 0) - (data?.ongoingIncidents ?? 0),
+    0
+  );
+
   return (
     <div className="incidents-dashboard">
       <div className="title-incidents">
         <h1>Incidentes</h1>
+      </div>
+
+      <div className="incidents-stats">
+        <div className="stat-card">
+          <span className="label">Total</span>
+          <span className="value">{data?.totalIncidents ?? 0}</span>
+        </div>
+        <div className="stat-card">
+          <span className="label">Resueltos</span>
+          <span className="value up">{resolvedCount}</span>
+        </div>
+        <div className="stat-card">
+          <span className="label">En curso</span>
+          <span className="value down">{data?.ongoingIncidents ?? 0}</span>
+        </div>
       </div>
 
       <div className="filter-current">

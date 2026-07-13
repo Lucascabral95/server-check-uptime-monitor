@@ -1,24 +1,55 @@
-@use "sass:color";
+$bg-card: var(--color-bg-surface);
+$bg-hover: var(--color-bg-surface-hover);
+$bg-soft: var(--color-bg-inset);
+$bg-menu: var(--color-bg-inset);
+$border: var(--color-border-subtle);
 
-$bg-card: #1c2434;
-$bg-hover: #2d3340;
-$bg-soft: #131a25;
-$bg-menu: #1a1f2e;
-$border: #2d3340;
+$text-main: var(--color-text-primary);
+$text-muted: var(--color-text-secondary);
+$text-soft: var(--color-text-muted);
 
-$text-main: #ffffff;
-$text-muted: #a0aec0;
-$text-soft: #72839e;
+$danger: var(--color-down);
 
-$success: #10b981;
-$warning: #f59e0b;
-$danger: #ef4444;
+$radius: var(--radius-md);
 
-$radius: 10px;
+// Shared status dot (also used by ChartStats donut legend)
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.dot-up { background-color: var(--color-up); box-shadow: 0 0 0 4px var(--color-up-subtle); }
+.dot-down { background-color: var(--color-down); box-shadow: 0 0 0 4px var(--color-down-subtle); }
+.dot-pending { background-color: var(--color-pending); box-shadow: 0 0 0 4px var(--color-pending-subtle); }
+.dot-degraded { background-color: var(--color-degraded); box-shadow: 0 0 0 4px var(--color-degraded-subtle); }
+.dot-paused { background-color: var(--color-paused); box-shadow: 0 0 0 4px var(--color-paused-subtle); }
+.dot-maintenance { background-color: var(--color-maintenance); box-shadow: 0 0 0 4px var(--color-maintenance-subtle); }
+
+// Shared status pill
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill-up { color: var(--color-up); background-color: var(--color-up-subtle); }
+.pill-down { color: var(--color-down); background-color: var(--color-down-subtle); }
+.pill-pending { color: var(--color-pending); background-color: var(--color-pending-subtle); }
+.pill-degraded { color: var(--color-degraded); background-color: var(--color-degraded-subtle); }
+.pill-paused { color: var(--color-paused); background-color: var(--color-paused-subtle); }
+.pill-maintenance { color: var(--color-maintenance); background-color: var(--color-maintenance-subtle); }
 
 .card-uptime {
   width: 100%;
   background-color: $bg-card;
+  border: 1px solid var(--color-border-subtle);
   border-radius: $radius;
   position: relative;
   overflow: visible;
@@ -27,7 +58,7 @@ $radius: 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 22px;
+    padding: 18px 20px;
     border-bottom: 1px solid $border;
     gap: 16px;
     cursor: pointer;
@@ -52,10 +83,6 @@ $radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
-
-        .icon {
-          font-size: 16px;
-        }
       }
 
       .url-request-date {
@@ -132,13 +159,13 @@ $radius: 10px;
         .next-check {
           .icon,
           span {
-            color: $warning;
+            color: var(--color-degraded);
           }
         }
 
         .last-check {
           .icon {
-            color: $success;
+            color: var(--color-up);
           }
 
           span {
@@ -203,14 +230,10 @@ $radius: 10px;
           right: 0;
           width: 210px;
           padding: 10px;
-          border-radius: 14px;
-          background: linear-gradient(
-            135deg,
-            $bg-menu 0%,
-            color.adjust($bg-menu, $lightness: -4%) 100%
-          );
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+          border-radius: var(--radius-lg);
+          background-color: $bg-menu;
+          border: 1px solid var(--color-border-subtle);
+          box-shadow: var(--shadow-elevated);
           z-index: 99999;
           animation: dropdownIn 0.18s ease forwards;
 

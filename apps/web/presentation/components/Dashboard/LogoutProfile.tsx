@@ -3,8 +3,15 @@
 import { useAuth } from '@/lib/hooks/useAuth'
 import "./DashboardComponents.scss"
 
+const getInitials = (loginId?: string) => {
+  if (!loginId) return "?"
+  const namePart = loginId.split("@")[0]
+  return namePart.slice(0, 2).toUpperCase()
+}
+
 const LogoutProfile = () => {
       const { logout, isLoading, user } = useAuth()
+      const loginId = user?.signInDetails?.loginId
 
       const handleLogout = async () => {
         await logout()
@@ -17,7 +24,8 @@ const LogoutProfile = () => {
   return (
     <div className='button-logout-profile-user'>
         <div className='profile-user'>
-              <p> {user?.signInDetails?.loginId || "Usuario no disponible"} </p>
+              <div className="profile-avatar">{getInitials(loginId)}</div>
+              <p> {loginId || "Usuario no disponible"} </p>
         </div>
 
       <button

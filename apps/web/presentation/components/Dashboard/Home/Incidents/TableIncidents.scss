@@ -1,10 +1,3 @@
-$border-color: rgba(255, 255, 255, 0.07);
-$text-primary: #e7edf7;
-$text-muted: #93a4bd;
-$text-muted-dark: #6f819c;
-$accent-green: #58e06d;
-$accent-red: #ff5f5f;
-
 .incidents-table {
   width: 100%;
   max-width: 100%;
@@ -12,13 +5,10 @@ $accent-red: #ff5f5f;
   box-sizing: border-box;
   overflow: hidden;
 
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.03),
-    rgba(255, 255, 255, 0.015)
-  );
-  border: 1px solid $border-color;
-  border-radius: 14px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .table-wrapper {
@@ -27,11 +17,11 @@ $accent-red: #ff5f5f;
   min-width: 0;
   overflow-x: auto;
   box-sizing: border-box;
-  scrollbar-width: none;        
-  -ms-overflow-style: none;     
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 
   &::-webkit-scrollbar {
-    display: none;              
+    display: none;
   }
 }
 
@@ -42,28 +32,34 @@ table {
 
   thead {
     th {
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 600;
-      color: $text-muted;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       text-align: left;
-      padding: 14px 16px;
-      border-bottom: 1px solid $border-color;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--color-border);
       white-space: nowrap;
     }
   }
 
   tbody {
     tr {
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--color-border-subtle);
 
       &:last-child {
         border-bottom: none;
       }
 
+      &:hover td {
+        background: var(--color-bg-surface-hover);
+      }
+
       td {
-        padding: 14px 16px;
-        font-size: 14px;
-        color: $text-primary;
+        padding: 14px 18px;
+        font-size: 13.5px;
+        color: var(--color-text-primary);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -74,10 +70,32 @@ table {
 }
 
 .status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+  font-size: 12.5px;
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+  }
 
   &.resolved {
-    color: $accent-green;
+    color: var(--color-up);
+
+    .dot {
+      background: var(--color-up);
+    }
+  }
+
+  &.ongoing {
+    color: #ff8b85;
+
+    .dot {
+      background: var(--color-down);
+    }
   }
 }
 
@@ -92,37 +110,53 @@ table {
   min-width: 0;
 
   .code {
+    font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 700;
-    padding: 2px 6px;
+    padding: 2px 7px;
     border-radius: 4px;
-    color: #fff;
+    background: var(--color-bg-inset);
+    color: var(--color-text-secondary);
     flex-shrink: 0;
 
-    &-500 {
-      background: #ef4444;
+    &-DOWN {
+      background: var(--color-down-subtle);
+      color: var(--color-down);
     }
 
-    &-503 {
-      background: #f97316;
+    &-PENDING {
+      background: var(--color-pending-subtle);
+      color: var(--color-pending);
     }
   }
 
   .text {
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--color-text-secondary);
   }
 }
 
 .comments,
-.duration,
-.visibility {
+.duration {
   font-size: 13px;
+  color: var(--color-text-secondary);
 }
 
 .date {
   font-size: 13px;
-  color: $text-muted-dark;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.vis-badge {
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
 }
 
 @media (max-width: 768px) {
