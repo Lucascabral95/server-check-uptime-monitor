@@ -40,7 +40,8 @@
   },
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "1.1.5",
-    "@tailwindcss/oxide-linux-x64-gnu": "4.1.18"
+    "@tailwindcss/oxide-linux-x64-gnu": "4.1.18",
+    "lightningcss-linux-x64-gnu": "1.30.2"
   },
   "overrides": {
     "anymatch": {
